@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import ReactFlow, {
   useNodesState,
   useEdgesState,
@@ -14,7 +14,7 @@ import ReactFlow, {
   getStraightPath,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { generateRFDiagram, NODE_TYPES } from '../../utils/rfDiagramGenerator'
+import { generateRFDiagram, NODE_TYPES, MODEL_OPTIONS } from '../../utils/rfDiagramGenerator'
 
 // ─── Connection rules ─────────────────────────────────────────────────────────
 // Based on real enterprise network architecture best practices.
@@ -227,6 +227,35 @@ function getRule(srcType, tgtType) {
   return null
 }
 
+// ─── Model-aware rule adjustments ──────────────────────────────────────────────
+const CORE_SWITCH_MODELS = ['CX 6400', 'CX 8100', 'CX 8325', 'CX 8360', 'CX 9300', 'CX 10000']
+
+function adjustRuleForModels(rule, srcType, srcModel, tgtType, tgtModel) {
+  if (!rule || rule.blocked) return rule
+
+  // Switches core/agregación/spine no entregan PoE directo a un AP
+  if (srcType === 'switch' && tgtType === 'ap' && CORE_SWITCH_MODELS.includes(srcModel)) {
+    return {
+      options: ['Uplink hacia switch de acceso (sin PoE directo)'],
+      warn: `Los switches core/agregación (${CORE_SWITCH_MODELS.join(', ')}) no entregan PoE directo. Coloca un switch de acceso (CX 6000–6300) entre este switch y el AP.`,
+    }
+  }
+
+  // Storage Synology no soporta Fibre Channel
+  const isSynology = m => m?.startsWith('Synology')
+  if ((srcType === 'storage' && isSynology(srcModel)) || (tgtType === 'storage' && isSynology(tgtModel))) {
+    const filtered = rule.options?.filter(o => !/Fibre Channel|FC\b/.test(o))
+    if (filtered && filtered.length !== rule.options.length) {
+      if (filtered.length === 0) {
+        return { blocked: true, reason: 'Synology no soporta Fibre Channel. Usa iSCSI, NFS/SMB o SAS según el modelo.' }
+      }
+      return { ...rule, options: filtered }
+    }
+  }
+
+  return rule
+}
+
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS = {
   existing: { label: 'LEGACY', bg: 'rgba(22,22,22,0.95)', borderStyle: 'dashed', badgeColor: '#8d8d8d', badgeBg: 'rgba(141,141,141,0.12)', dimText: true },
@@ -264,6 +293,7 @@ function IBMNode({ data, selected }) {
               {data.label}
             </p>
             {data.brand && <p className="text-[10px] text-ibm-gray50 font-mono mt-0.5 leading-tight">{data.brand}</p>}
+            {data.model && <p className="text-[10px] text-ibm-blue font-mono mt-0.5 leading-tight">{data.model}</p>}
           </div>
         </div>
         <div className="text-[9px] font-mono mt-1.5 leading-none" style={{ color: data.color, opacity: 0.8 }}>
@@ -417,8 +447,14 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
   const [label,  setLabel]  = useState(node.data.label)
   const [note,   setNote]   = useState(node.data.note || '')
   const [status, setStatus] = useState(node.data.status || 'existing')
+  const [model,  setModel]  = useState(node.data.model || '')
+  const modelChoices = MODEL_OPTIONS[node.data.nodeType]
 
-  const save = () => { onUpdate(node.id, { label, note, status }); onClose() }
+  const save = () => {
+    const labelEdited = label !== node.data.label || node.data.labelEdited
+    onUpdate(node.id, { label, note, status, model, labelEdited })
+    onClose()
+  }
 
   return (
     <div className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl" style={{ width: 280 }}>
@@ -470,6 +506,15 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
             <p className="text-xs text-ibm-gray30 font-mono">{node.data.brand}</p>
           </div>
         )}
+        {modelChoices && (
+          <div>
+            <label className="field-label">Modelo</label>
+            <select className="field text-sm" value={model} onChange={e => setModel(e.target.value)}>
+              <option value="">— Sin especificar —</option>
+              {modelChoices.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 p-4 border-t border-ibm-gray70 flex-shrink-0">
@@ -509,16 +554,94 @@ function DiagramLegend() {
   )
 }
 
+// ─── Diagram reconciliation ───────────────────────────────────────────────────
+// Merges auto-generated diagram (from fresh assessment) into existing manual state.
+// Preserves user customizations (note, status, model, label, position) on existing nodes.
+// Adds newly required auto nodes/edges; removes auto nodes no longer required by domains.
+// Never removes manually-added nodes (auto !== true).
+function mergeDiagram(existingNodes, existingEdges, generated) {
+  const existingById = new Map(existingNodes.map(n => [n.id, n]))
+
+  const nextNodes = [
+    ...generated.nodes.map(g => {
+      const ex = existingById.get(g.id)
+      if (!ex) return g // new auto node
+      // Preserve user customizations; update auto-generated label only if user hasn't edited it
+      return {
+        ...ex,
+        position: ex.position,
+        data: {
+          ...g.data,
+          note:         ex.data.note,
+          status:       ex.data.status,
+          model:        ex.data.model,
+          label:        ex.data.labelEdited ? ex.data.label : g.data.label,
+          labelEdited:  ex.data.labelEdited,
+        },
+      }
+    }),
+    // Keep manually-added nodes not in generated set
+    ...existingNodes.filter(n => !n.data?.auto && !generated.nodes.find(g => g.id === n.id)),
+  ]
+
+  const nextNodeIds = new Set(nextNodes.map(n => n.id))
+  // Keep existing edges whose both endpoints still exist; add new generated edges not present
+  const existingEdgeIds = new Set(existingEdges.map(e => e.id))
+  const nextEdges = [
+    ...existingEdges.filter(e => nextNodeIds.has(e.source) && nextNodeIds.has(e.target)),
+    ...generated.edges.filter(e => !existingEdgeIds.has(e.id) && nextNodeIds.has(e.source) && nextNodeIds.has(e.target)),
+  ]
+
+  return { nodes: nextNodes, edges: nextEdges }
+}
+
 // ─── Main canvas ──────────────────────────────────────────────────────────────
-export default function DiagramCanvas({ assessment }) {
-  const { nodes: initNodes, edges: initEdges } = generateRFDiagram(assessment)
-  const [nodes, setNodes, onNodesChange] = useNodesState(initNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initEdges)
+export default function DiagramCanvas({ assessment, onDiagramChange }) {
+  const savedDiagram = assessment.diagram
+  const initRef = useRef(null)
+  if (!initRef.current) {
+    // One-time init: restore saved diagram or generate fresh
+    if (savedDiagram?.nodes?.length) {
+      initRef.current = savedDiagram
+    } else {
+      initRef.current = generateRFDiagram(assessment)
+    }
+  }
+  const [nodes, setNodes, onNodesChange] = useNodesState(initRef.current.nodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initRef.current.edges)
   const [selectedNode, setSelectedNode] = useState(null)
   const [showPicker, setShowPicker]     = useState(false)
   const [pendingConn, setPendingConn]   = useState(null)
   const [fullscreen, setFullscreen]     = useState(false)
   const idCounter = useRef(100)
+  const nodesRef = useRef(nodes)
+  const edgesRef = useRef(edges)
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
+  useEffect(() => { edgesRef.current = edges }, [edges])
+
+  const prevDomainsKey = useRef(JSON.stringify(assessment.domains) + JSON.stringify(assessment.answers))
+
+  // ── Reconcile diagram when form domains/answers change ──
+  useEffect(() => {
+    const key = JSON.stringify(assessment.domains) + JSON.stringify(assessment.answers)
+    if (key === prevDomainsKey.current) return
+    prevDomainsKey.current = key
+    const generated = generateRFDiagram(assessment)
+    const { nodes: n, edges: e } = mergeDiagram(nodesRef.current, edgesRef.current, generated)
+    setNodes(n)
+    setEdges(e)
+  }, [assessment.domains, assessment.answers]) // eslint-disable-line
+
+  // ── Propagate diagram changes up (debounced) for autosave ──
+  const changeTimer = useRef(null)
+  useEffect(() => {
+    if (!onDiagramChange) return
+    clearTimeout(changeTimer.current)
+    changeTimer.current = setTimeout(() => {
+      onDiagramChange({ nodes, edges })
+    }, 800)
+    return () => clearTimeout(changeTimer.current)
+  }, [nodes, edges]) // eslint-disable-line
 
   // ── Fullscreen toggle (Fullscreen API + fallback CSS overlay) ──
   const containerRef = useRef(null)
@@ -541,7 +664,7 @@ export default function DiagramCanvas({ assessment }) {
     const src = nodes.find(n => n.id === connection.source)
     const tgt = nodes.find(n => n.id === connection.target)
     if (!src || !tgt || src.id === tgt.id) return false
-    const rule = getRule(src.data.nodeType, tgt.data.nodeType)
+    const rule = adjustRuleForModels(getRule(src.data.nodeType, tgt.data.nodeType), src.data.nodeType, src.data.model, tgt.data.nodeType, tgt.data.model)
     return !rule?.blocked
   }, [nodes])
 
@@ -551,7 +674,7 @@ export default function DiagramCanvas({ assessment }) {
     const tgt = nodes.find(n => n.id === params.target)
     if (!src || !tgt) return
 
-    const rule = getRule(src.data.nodeType, tgt.data.nodeType)
+    const rule = adjustRuleForModels(getRule(src.data.nodeType, tgt.data.nodeType), src.data.nodeType, src.data.model, tgt.data.nodeType, tgt.data.model)
     if (rule?.blocked) return
 
     const needsPicker = (rule?.options && rule.options.length > 1) || rule?.warn
@@ -603,7 +726,7 @@ export default function DiagramCanvas({ assessment }) {
       id, type: 'ibmNode',
       position: { x: 80 + Math.random() * 200, y: 80 + Math.random() * 200 },
       data: { nodeType: type, icon: base.icon, label: base.label, brand: base.brand,
-              color: base.color, domainLabel: base.domainLabel || '', note: '', status: 'new' },
+              color: base.color, domainLabel: base.domainLabel || '', note: '', status: 'new', auto: false },
     }])
   }
 

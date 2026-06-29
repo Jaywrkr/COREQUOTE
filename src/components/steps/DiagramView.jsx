@@ -1,7 +1,7 @@
 import DiagramCanvas from '../diagram/DiagramCanvas'
 import { DOMAINS } from '../../data/domains'
 
-export default function DiagramView({ assessment }) {
+export default function DiagramView({ assessment, onDiagramChange }) {
   const activeDomains = DOMAINS.filter(d => assessment.domains.includes(d.id))
 
   if (assessment.domains.length === 0) {
@@ -29,7 +29,7 @@ export default function DiagramView({ assessment }) {
 
       {/* Canvas — explicit style so ReactFlow sees a real height */}
       <div style={{ flex: 1, minHeight: 0 }}>
-        <DiagramCanvas assessment={assessment} />
+        <DiagramCanvas assessment={assessment} onDiagramChange={onDiagramChange} />
       </div>
     </div>
   )
