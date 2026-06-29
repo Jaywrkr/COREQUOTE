@@ -432,7 +432,24 @@ export default function DiagramCanvas({ assessment }) {
   const [selectedNode, setSelectedNode] = useState(null)
   const [showPicker, setShowPicker]     = useState(false)
   const [pendingConn, setPendingConn]   = useState(null)
+  const [fullscreen, setFullscreen]     = useState(false)
   const idCounter = useRef(100)
+
+  // ── Fullscreen toggle (Fullscreen API + fallback CSS overlay) ──
+  const containerRef = useRef(null)
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => setFullscreen(f => !f))
+    } else {
+      document.exitFullscreen().catch(() => setFullscreen(f => !f))
+    }
+  }
+  // Sync state when user presses Escape
+  useCallback(() => {
+    const handler = () => { if (!document.fullscreenElement) setFullscreen(false) }
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])()
 
   // ── Validate connection while dragging ──
   const isValidConnection = useCallback((connection) => {
@@ -460,6 +477,11 @@ export default function DiagramCanvas({ assessment }) {
       addEdgeLabeled(params, label)
     }
   }, [nodes])
+
+  // ── Left-click on edge = delete it ──
+  const onEdgeClick = useCallback((_, edge) => {
+    setEdges(es => es.filter(e => e.id !== edge.id))
+  }, [setEdges])
 
   function addEdgeLabeled(params, label) {
     setEdges(eds => addEdge({
@@ -501,13 +523,22 @@ export default function DiagramCanvas({ assessment }) {
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%', height: '100%', position: 'relative',
+        ...(fullscreen && !document.fullscreenElement
+          ? { position: 'fixed', inset: 0, zIndex: 9999, background: '#161616' }
+          : {}),
+      }}
+    >
       <ReactFlow
         nodes={nodes} edges={edges}
         onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         onNodeClick={onNodeClick} onPaneClick={onPaneClick}
+        onEdgeClick={onEdgeClick}
         nodeTypes={NODE_TYPE_MAP} edgeTypes={EDGE_TYPE_MAP}
         fitView fitViewOptions={{ padding: 0.3 }}
         deleteKeyCode="Delete"
@@ -531,12 +562,33 @@ export default function DiagramCanvas({ assessment }) {
                 Agregar
               </button>
               <p className="text-[10px] text-ibm-gray50 hidden sm:block">
-                Click para editar · Delete para eliminar
+                Click nodo = editar · Click línea = eliminar · Del = borrar nodo
               </p>
               {showPicker && <AddNodePicker onAdd={addNode} onClose={() => setShowPicker(false)} />}
             </div>
             <DiagramLegend />
           </div>
+        </Panel>
+
+        {/* Fullscreen button — top-right */}
+        <Panel position="top-right">
+          <button
+            onClick={toggleFullscreen}
+            title={document.fullscreenElement || fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            className="flex items-center justify-center w-8 h-8 bg-ibm-gray90 border border-ibm-gray70 text-ibm-gray30 hover:text-ibm-gray10 hover:border-ibm-gray50 transition-colors"
+          >
+            {document.fullscreenElement || fullscreen ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 9V4H4m0 5h5M15 4h5v5m0-5h-5M9 15H4v5m5 0v-5m6 5v-5h5m-5 0h5" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 8V4h4M4 16v4h4m12-4v4h-4m4-12V4h-4" />
+              </svg>
+            )}
+          </button>
         </Panel>
       </ReactFlow>
 
