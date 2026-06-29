@@ -332,6 +332,27 @@ function IBMNode({ data, selected }) {
         <div className="text-[9px] font-mono mt-1.5 leading-none" style={{ color: data.color, opacity: 0.8 }}>
           {data.domainLabel || ''}
         </div>
+        {/* Redundancy / dual-controller visualization */}
+        {data.redundancy?.count >= 2 && (
+          <div
+            className="mt-2 grid gap-px"
+            style={{ gridTemplateColumns: `repeat(${Math.min(data.redundancy.count, 4)}, 1fr)` }}
+          >
+            {Array.from({ length: Math.min(data.redundancy.count, 4) }).map((_, i) => (
+              <div
+                key={i}
+                className="text-center py-0.5 text-[8px] font-mono font-semibold"
+                style={{
+                  border: `1px solid ${data.color}55`,
+                  backgroundColor: `${data.color}18`,
+                  color: data.color,
+                }}
+              >
+                {data.redundancy.label} {String.fromCharCode(65 + i)}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
       <Handle type="source" position={Position.Right}  style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
@@ -495,7 +516,11 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
 
   const save = () => {
     const labelEdited = label !== node.data.label || node.data.labelEdited
-    onUpdate(node.id, { label, note, status, model, labelEdited })
+    const equipSpec = EQUIPMENT_DB[model]
+    onUpdate(node.id, {
+      label, note, status, model, labelEdited,
+      redundancy: equipSpec?.redundancy || null,
+    })
     onClose()
   }
 

@@ -1,5 +1,6 @@
-// Equipment specs database — Aruba CX switches & Lenovo ThinkSystem servers
+// Equipment specs database — Aruba CX, Lenovo ThinkSystem, IBM FlashSystem/Power/TS, Synology
 // Used for node info panel and port-aware connection options.
+// redundancy: { count, label } → shown as split visual inside the diagram node (dual controller, dual socket, etc.)
 
 export const EQUIPMENT_DB = {
 
@@ -327,5 +328,415 @@ export const EQUIPMENT_DB = {
       'Diseñado para entornos de borde (temperatura extendida)',
     ],
     notes: 'Servidor edge tolerante a condiciones ambientales adversas. XClarity + certificaciones NEBS/ETSI.',
+  },
+
+  // ─── IBM FLASHSYSTEM (ALL-FLASH STORAGE) ─────────────────────────────────────
+
+  'FlashSystem 5600': {
+    name: 'IBM FlashSystem 5600',
+    category: 'storage',
+    formFactor: '2U rack (2 canisters)',
+    redundancy: { count: 2, label: 'Canister' },
+    ports: [
+      { label: '4× FC 32Gb (2 por canister)',    count: 4, speed: '32G FC', media: 'fc',    poe: null },
+      { label: '4× iSCSI 25GbE (2 por canister)', count: 4, speed: '25G',   media: 'sfp28', poe: null },
+      { label: '4× iSCSI 10GbE (2 por canister)', count: 4, speed: '10G',   media: 'sfp+',  poe: null },
+    ],
+    specs: {
+      switching: null,
+      routing: null,
+      management: 'IBM Storage Insights / GUI / CLI / REST',
+      maxCapacity: '580 TB bruto (NVMe)',
+      cache: '64 GB por canister (mirrored)',
+      protocols: 'FC 32G · iSCSI 25G/10G · NVMe-oF',
+    },
+    expansion: [
+      'Hasta 4 bandejas de expansión DS8F',
+      'Compresión + deduplicación en línea',
+      'Replicación Metro Mirror / Global Mirror',
+    ],
+    notes: 'Activo-activo entre ambos canisters. Cada canister tiene sus propios puertos — conectar host a ambos para multipath redundante.',
+  },
+
+  'FlashSystem 7600': {
+    name: 'IBM FlashSystem 7600',
+    category: 'storage',
+    formFactor: '2U rack (2 canisters)',
+    redundancy: { count: 2, label: 'Canister' },
+    ports: [
+      { label: '8× FC 32Gb (4 por canister)',    count: 8, speed: '32G FC', media: 'fc',    poe: null },
+      { label: '4× iSCSI 25GbE (2 por canister)', count: 4, speed: '25G',   media: 'sfp28', poe: null },
+      { label: '8× iSCSI 10GbE (4 por canister)', count: 8, speed: '10G',   media: 'sfp+',  poe: null },
+    ],
+    specs: {
+      management: 'IBM Storage Insights / GUI / CLI / REST',
+      maxCapacity: '5.8 PB bruto (NVMe)',
+      cache: '128 GB por canister (mirrored)',
+      protocols: 'FC 32G · iSCSI 25G/10G · NVMe-oF',
+    },
+    expansion: [
+      'Hasta 8 bandejas de expansión',
+      'IBM FlashCore Module (FCM) con compresión HW',
+      'Replicación Metro Mirror / Global Mirror / HyperSwap',
+    ],
+    notes: 'Mayor densidad y rendimiento que el 5600. HyperSwap permite conmutación transparente entre dos sitios.',
+  },
+
+  'FlashSystem 9600': {
+    name: 'IBM FlashSystem 9600',
+    category: 'storage',
+    formFactor: '2U rack (2 canisters)',
+    redundancy: { count: 2, label: 'Canister' },
+    ports: [
+      { label: '8× FC 64Gb (4 por canister)',     count: 8, speed: '64G FC',  media: 'fc',     poe: null },
+      { label: '8× iSCSI 100GbE (4 por canister)', count: 8, speed: '100G',   media: 'qsfp28', poe: null },
+      { label: '4× iSCSI 25GbE (2 por canister)',  count: 4, speed: '25G',    media: 'sfp28',  poe: null },
+    ],
+    specs: {
+      management: 'IBM Storage Insights / GUI / CLI / REST',
+      maxCapacity: '32.6 PB bruto (NVMe FCM)',
+      cache: '512 GB por canister (mirrored)',
+      protocols: 'FC 64G · iSCSI 100G/25G · NVMe-oF',
+    },
+    expansion: [
+      'Hasta 16 bandejas de expansión',
+      'IBM FlashCore Module Gen4 (compresión + encriptación HW)',
+      'Replicación Metro Mirror / Global Mirror / HyperSwap / Safeguarded Copy',
+      'Data Reduction garantizado (3:1 mínimo)',
+    ],
+    notes: 'Sistema enterprise top de gama. Cada canister con sus propios puertos FC 64G. Siempre conectar host a ambos canisters (multipath MPIO).',
+  },
+
+  // ─── IBM POWER (AIX / IBM i) ──────────────────────────────────────────────────
+
+  'S1012': {
+    name: 'IBM Power S1012',
+    category: 'power',
+    formFactor: '4U rack o tower',
+    redundancy: null,
+    cpu: '1× POWER10 (hasta 8 cores activos)',
+    ram: '4× DDR4 — hasta 256 GB',
+    storage: '2× SAS / NVMe internos + expansión',
+    ports: [
+      { label: '2× RJ45 1GbE (BMC/OS)',  count: 2, speed: '1G', media: 'copper', poe: null },
+      { label: '1× USB 3.0',             count: 1, speed: null,  media: 'usb',    poe: null },
+    ],
+    expansion: [
+      'PCIe 4.0 ×16 (×2 slots)',
+      'Adaptadores FC 32G para SAN',
+      'NIC 10G / 25G adicional',
+      'Conectividad PowerVM (LPAR) incluida',
+    ],
+    notes: 'Entry level POWER10. Un único socket. Soporta AIX, IBM i y Linux. Ideal para cargas de trabajo medianas en entornos POWER.',
+  },
+
+  'S1014': {
+    name: 'IBM Power S1014',
+    category: 'power',
+    formFactor: '4U rack',
+    redundancy: null,
+    cpu: '1× POWER10 (hasta 24 cores)',
+    ram: '8× DDR4 — hasta 512 GB',
+    storage: '8× SAS/NVMe internos',
+    ports: [
+      { label: '2× RJ45 1GbE (BMC/OS)', count: 2, speed: '1G', media: 'copper', poe: null },
+    ],
+    expansion: [
+      'PCIe 4.0 ×16 (×3 slots)',
+      'Adaptadores FC 32G',
+      'NIC 10G / 25G',
+      'PowerVM incluido',
+    ],
+    notes: 'Mid-range POWER10 mono-socket. Hasta 24 cores. Soporta AIX, IBM i y Linux on POWER.',
+  },
+
+  'S1022': {
+    name: 'IBM Power S1022',
+    category: 'power',
+    formFactor: '2U rack',
+    redundancy: { count: 2, label: 'Socket' },
+    cpu: '2× POWER10 (hasta 20 cores c/u — 40 total)',
+    ram: '16× DDR4 — hasta 2 TB',
+    storage: '8× SAS/NVMe internos',
+    ports: [
+      { label: '4× RJ45 1GbE (BMC/OS)', count: 4, speed: '1G', media: 'copper', poe: null },
+    ],
+    expansion: [
+      'PCIe 4.0 ×16 (×6 slots)',
+      'Adaptadores FC 32G',
+      'NIC 10G / 25G',
+      'PowerVM incluido',
+      'Scale-out: hasta 4 nodos en cluster',
+    ],
+    notes: 'Dual socket POWER10. Alta densidad de procesamiento en 2U. Popular para entornos AIX y IBM i medianos-grandes.',
+  },
+
+  'S1024': {
+    name: 'IBM Power S1024',
+    category: 'power',
+    formFactor: '4U rack',
+    redundancy: { count: 2, label: 'Socket' },
+    cpu: '2× POWER10 (hasta 24 cores c/u — 48 total)',
+    ram: '32× DDR4 — hasta 4 TB',
+    storage: '12× SAS/NVMe internos',
+    ports: [
+      { label: '4× RJ45 1GbE (BMC/OS)', count: 4, speed: '1G', media: 'copper', poe: null },
+    ],
+    expansion: [
+      'PCIe 4.0 ×16 (×8 slots)',
+      'Adaptadores FC 32G / NIC 25G',
+      'PowerVM incluido',
+    ],
+    notes: 'El más potente de la línea scale-out POWER10. Dual socket, 4U. Ideal para consolidación AIX/IBM i de alta carga.',
+  },
+
+  'E1050': {
+    name: 'IBM Power E1050',
+    category: 'power',
+    formFactor: '4U rack (enterprise)',
+    redundancy: { count: 4, label: 'Socket' },
+    cpu: '4× POWER10 (hasta 24 cores c/u — 96 total)',
+    ram: '64× DDR4 — hasta 8 TB',
+    storage: 'NVMe interno + expansión externa',
+    ports: [
+      { label: '8× RJ45 1GbE (BMC/OS/HMC)', count: 8, speed: '1G', media: 'copper', poe: null },
+    ],
+    expansion: [
+      'PCIe 4.0 ×16 (múltiples slots)',
+      'HMC (Hardware Management Console) obligatorio',
+      'Adaptadores FC 64G',
+      'NIC 25G / 100G',
+      'Live Partition Mobility (LPM)',
+    ],
+    notes: 'Enterprise scale-up POWER10. 4 sockets, hasta 96 cores. HMC requerido. LPAR, LPM, PowerHA disponibles.',
+  },
+
+  'E1080': {
+    name: 'IBM Power E1080',
+    category: 'power',
+    formFactor: '4U por drawer — hasta 4 drawers (16 sockets)',
+    redundancy: { count: 4, label: 'Drawer' },
+    cpu: 'Hasta 16× POWER10 (hasta 15 cores c/u — 240 total)',
+    ram: 'Hasta 128× DDR4 — hasta 64 TB',
+    storage: 'NVMe interno + bandejas externas',
+    ports: [
+      { label: '8× RJ45 1GbE por drawer (HMC/BMC)', count: 8, speed: '1G', media: 'copper', poe: null },
+    ],
+    expansion: [
+      'HMC obligatorio (doble para HA)',
+      'Adaptadores FC 64G / NIC 100G',
+      'Live Partition Mobility, PowerHA SystemMirror',
+      'Memoria diferencial entre drawers',
+    ],
+    notes: 'El servidor POWER10 enterprise más grande. Hasta 4 drawers en un solo sistema. Misión crítica: AIX, IBM i, SAP HANA on Power.',
+  },
+
+  // ─── IBM TAPE LIBRARY (TS SERIES) ────────────────────────────────────────────
+
+  'TS4300': {
+    name: 'IBM TS4300 Tape Library',
+    category: 'tape',
+    formFactor: '2U rack (expandible a 4U/6U)',
+    redundancy: null,
+    ports: [
+      { label: '1× RJ45 1GbE (management)', count: 1, speed: '1G', media: 'copper', poe: null },
+      { label: '2× FC 16G por drive (data)',  count: 2, speed: '16G FC', media: 'fc', poe: null },
+    ],
+    specs: {
+      management: 'GUI / SNMP / SMI-S',
+      maxCapacity: 'Hasta 200 cartuchos (LTO-8/9)',
+      drives: '1–2 unidades LTO-8/9 por módulo',
+      protocols: 'FC 16G · SAS (directo a servidor)',
+    },
+    expansion: [
+      'Hasta 3 módulos de expansión (200 cart. total)',
+      'Soporte LTO-7, LTO-8, LTO-9',
+      'WORM (Write Once Read Many)',
+    ],
+    notes: 'Library mid-range. Conexión de datos vía FC o SAS directo al servidor de backup (Veeam). Management por Ethernet.',
+  },
+
+  'TS4500': {
+    name: 'IBM TS4500 Tape Library',
+    category: 'tape',
+    formFactor: 'Frame rack (modular, hasta 16 frames)',
+    redundancy: { count: 2, label: 'Accessor' },
+    ports: [
+      { label: '2× RJ45 1GbE (management)',   count: 2, speed: '1G',    media: 'copper', poe: null },
+      { label: '4× FC 32G por drive (data)',   count: 4, speed: '32G FC', media: 'fc',    poe: null },
+    ],
+    specs: {
+      management: 'IBM Spectrum Archive / LTFS / GUI / REST',
+      maxCapacity: 'Hasta 20,000 cartuchos (LTO-9)',
+      drives: 'Hasta 144 unidades LTO-9',
+      protocols: 'FC 32G · LTFS',
+    },
+    expansion: [
+      'Doble accessor (robot) para redundancia y velocidad',
+      'Hasta 16 frames de expansión',
+      'LTO-8 y LTO-9',
+      'Compatible IBM Spectrum Archive (LTFS)',
+      'Replication entre frames para DR en sitio',
+    ],
+    notes: 'Library enterprise de alta capacidad. Doble accessor (robot) independiente — si uno falla, el otro continúa. Management redundante.',
+  },
+
+  // ─── SYNOLOGY (NAS) ──────────────────────────────────────────────────────────
+
+  'Synology RS6426xs+': {
+    name: 'Synology RackStation RS6426xs+',
+    category: 'storage',
+    formFactor: '4U rack (26 bahías)',
+    redundancy: null,
+    ports: [
+      { label: '4× RJ45 1GbE',    count: 4, speed: '1G',  media: 'copper', poe: null },
+      { label: '2× SFP+ 10GbE',   count: 2, speed: '10G', media: 'sfp+',   poe: null },
+      { label: '2× SFP28 25GbE',  count: 2, speed: '25G', media: 'sfp28',  poe: null },
+    ],
+    specs: {
+      management: 'DSM 7 / REST API / Active Directory',
+      maxCapacity: '26 bahías SATA/SAS + caché SSD',
+      protocols: 'SMB · NFS · iSCSI · AFP · FTP',
+      cache: 'SSD cache en bahías dedicadas',
+    },
+    expansion: [
+      'Hasta 2 unidades de expansión (RX-series)',
+      'Synology High Availability (SHA) — activo/pasivo con segundo NAS idéntico',
+      'Snapshot Replication',
+    ],
+    notes: 'NAS enterprise Synology de mayor capacidad. NO soporta FC (solo IP: iSCSI/SMB/NFS). Para HA se requiere segundo RS6426xs+ con SHA.',
+  },
+
+  'Synology RS4826xs+': {
+    name: 'Synology RackStation RS4826xs+',
+    category: 'storage',
+    formFactor: '4U rack (48 bahías)',
+    redundancy: null,
+    ports: [
+      { label: '4× RJ45 1GbE',   count: 4, speed: '1G',  media: 'copper', poe: null },
+      { label: '2× SFP+ 10GbE',  count: 2, speed: '10G', media: 'sfp+',   poe: null },
+      { label: '2× SFP28 25GbE', count: 2, speed: '25G', media: 'sfp28',  poe: null },
+    ],
+    specs: {
+      management: 'DSM 7',
+      maxCapacity: '48 bahías SATA/SAS',
+      protocols: 'SMB · NFS · iSCSI · FTP',
+    },
+    expansion: ['Expansión con RX-series', 'SHA con unidad idéntica'],
+    notes: 'Alta densidad de bahías en 4U. Solo protocolos IP. Sin FC.',
+  },
+
+  'Synology RS3626xs': {
+    name: 'Synology RackStation RS3626xs',
+    category: 'storage',
+    formFactor: '4U rack (36 bahías)',
+    redundancy: null,
+    ports: [
+      { label: '4× RJ45 1GbE',   count: 4, speed: '1G',  media: 'copper', poe: null },
+      { label: '2× SFP+ 10GbE',  count: 2, speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    specs: {
+      management: 'DSM 7',
+      maxCapacity: '36 bahías SATA/SAS',
+      protocols: 'SMB · NFS · iSCSI · FTP',
+    },
+    expansion: ['Expansión RX-series'],
+    notes: '36 bahías en 4U. Protocols IP únicamente (sin FC).',
+  },
+
+  'Synology RS1626xs+': {
+    name: 'Synology RackStation RS1626xs+',
+    category: 'storage',
+    formFactor: '2U rack (16 bahías)',
+    redundancy: null,
+    ports: [
+      { label: '4× RJ45 1GbE',  count: 4, speed: '1G',  media: 'copper', poe: null },
+      { label: '2× SFP+ 10GbE', count: 2, speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    specs: {
+      management: 'DSM 7',
+      maxCapacity: '16 bahías SATA/SAS + expansión',
+      protocols: 'SMB · NFS · iSCSI',
+    },
+    expansion: ['Hasta 2 RX-series', 'SHA con unidad idéntica'],
+    notes: 'NAS rack 2U compacto de gama alta. Sin FC. Ideal para empresas medianas.',
+  },
+
+  'Synology DS1825+': {
+    name: 'Synology DiskStation DS1825+',
+    category: 'storage',
+    formFactor: 'Desktop (18 bahías)',
+    redundancy: null,
+    ports: [
+      { label: '4× RJ45 1GbE',  count: 4, speed: '1G',  media: 'copper', poe: null },
+      { label: '2× SFP+ 10GbE', count: 2, speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    specs: {
+      management: 'DSM 7',
+      maxCapacity: '18 bahías SATA',
+      protocols: 'SMB · NFS · iSCSI',
+    },
+    expansion: ['DX-series expansion'],
+    notes: 'NAS desktop de alta capacidad. Sin FC.',
+  },
+
+  'Synology DS1525+': {
+    name: 'Synology DiskStation DS1525+',
+    category: 'storage',
+    formFactor: 'Desktop (15 bahías)',
+    redundancy: null,
+    ports: [
+      { label: '4× RJ45 1GbE',  count: 4, speed: '1G',  media: 'copper', poe: null },
+      { label: '2× SFP+ 10GbE (ranura PCIe)', count: 2, speed: '10G', media: 'sfp+', poe: null },
+    ],
+    specs: { management: 'DSM 7', maxCapacity: '15 bahías SATA', protocols: 'SMB · NFS · iSCSI' },
+    expansion: ['DX513 (5 bahías adicionales × 2)'],
+    notes: '15 bahías desktop. NIC 10G opcional vía ranura PCIe.',
+  },
+
+  'Synology DS925+': {
+    name: 'Synology DiskStation DS925+',
+    category: 'storage',
+    formFactor: 'Desktop (9 bahías)',
+    redundancy: null,
+    ports: [
+      { label: '2× RJ45 2.5GbE',              count: 2, speed: '2.5G', media: 'copper', poe: null },
+      { label: '2× SFP+ 10GbE (ranura PCIe)', count: 2, speed: '10G',  media: 'sfp+',   poe: null },
+    ],
+    specs: { management: 'DSM 7', maxCapacity: '9 bahías SATA/NVMe', protocols: 'SMB · NFS · iSCSI' },
+    expansion: [],
+    notes: 'NAS compacto de escritorio. 9 bahías con ranura PCIe para expansión 10G.',
+  },
+
+  'Synology DS725+': {
+    name: 'Synology DiskStation DS725+',
+    category: 'storage',
+    formFactor: 'Desktop (7 bahías)',
+    redundancy: null,
+    ports: [
+      { label: '2× RJ45 1GbE',               count: 2, speed: '1G',  media: 'copper', poe: null },
+      { label: '1× SFP+ 10GbE (ranura PCIe)', count: 1, speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    specs: { management: 'DSM 7', maxCapacity: '7 bahías SATA', protocols: 'SMB · NFS · iSCSI' },
+    expansion: [],
+    notes: 'NAS entry desktop. 7 bahías con opción 10G.',
+  },
+
+  'Synology FS200T': {
+    name: 'Synology FlashStation FS200T',
+    category: 'storage',
+    formFactor: '2U rack — All-Flash (24 bahías NVMe)',
+    redundancy: { count: 2, label: 'Controladora' },
+    ports: [
+      { label: '4× SFP+ 10GbE por controladora',  count: 8,  speed: '10G',  media: 'sfp+',  poe: null },
+      { label: '2× SFP28 25GbE por controladora',  count: 4,  speed: '25G',  media: 'sfp28', poe: null },
+    ],
+    specs: {
+      management: 'DSM 7 / HA activo-pasivo',
+      maxCapacity: '24× NVMe SSD (all-flash)',
+      protocols: 'iSCSI · NFS · SMB',
+    },
+    expansion: ['HA integrado — dos controladoras activo/pasivo', 'Failover automático < 30 s'],
+    notes: 'Único NAS Synology con dual-controladora real (activo/pasivo). All-flash NVMe. SIN soporte FC — solo iSCSI/NFS/SMB sobre IP.',
   },
 }
