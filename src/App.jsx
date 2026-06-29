@@ -85,7 +85,7 @@ function Sheet({ title, onClose, children }) {
           </button>
         </div>
         {/* Sheet body */}
-        <div className="overflow-y-auto flex-1 px-5 py-5">{children}</div>
+        <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
       </div>
     </div>
   )
@@ -313,7 +313,9 @@ export default function App() {
       )}
       {sheet === 'reporte' && (
         <Sheet title="Reporte" onClose={() => setSheet(null)}>
-          <OutputView assessment={assessment} />
+          <div className="overflow-y-auto h-full px-5 py-5">
+            <OutputView assessment={assessment} />
+          </div>
         </Sheet>
       )}
     </div>
