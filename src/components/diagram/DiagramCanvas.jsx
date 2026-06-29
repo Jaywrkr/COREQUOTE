@@ -595,8 +595,35 @@ function mergeDiagram(existingNodes, existingEdges, generated) {
   return { nodes: nextNodes, edges: nextEdges }
 }
 
+// ─── Diagram → domain sync ────────────────────────────────────────────────────
+const NODE_TO_DOMAIN = {
+  firewall: 'seguridad',
+  switch:   'redes',
+  ap:       'redes',
+  servidor: 'servidores',
+  power:    'servidores',
+  storage:  'storage',
+  tape:     'storage',
+  backup:   'backup',
+  vm:       'virtualizacion',
+  cloud:    'nube',
+}
+// Domains that have a diagram node mapping (others like 'dimensionamiento' are always kept)
+const DIAGRAM_MANAGED_DOMAINS = new Set(Object.values(NODE_TO_DOMAIN))
+
+function domainsFromNodes(nodes, currentDomains) {
+  const activeFromDiagram = new Set()
+  for (const n of nodes) {
+    const d = NODE_TO_DOMAIN[n.data?.nodeType]
+    if (d) activeFromDiagram.add(d)
+  }
+  // Keep domains that have no diagram representation unchanged
+  const unmapped = currentDomains.filter(d => !DIAGRAM_MANAGED_DOMAINS.has(d))
+  return [...unmapped, ...activeFromDiagram].sort()
+}
+
 // ─── Main canvas ──────────────────────────────────────────────────────────────
-export default function DiagramCanvas({ assessment, onDiagramChange }) {
+export default function DiagramCanvas({ assessment, onDiagramChange, onDomainChange }) {
   const savedDiagram = assessment.diagram
   const initRef = useRef(null)
   if (!initRef.current) {
@@ -631,6 +658,20 @@ export default function DiagramCanvas({ assessment, onDiagramChange }) {
     setNodes(n)
     setEdges(e)
   }, [assessment.domains, assessment.answers]) // eslint-disable-line
+
+  // ── Propagate domain changes when nodes are added/removed (diagram → form) ──
+  const prevNodesKey = useRef(null)
+  useEffect(() => {
+    const key = nodes.map(n => n.data?.nodeType).sort().join(',')
+    if (key === prevNodesKey.current) return
+    prevNodesKey.current = key
+    if (!onDomainChange) return
+    const next = domainsFromNodes(nodes, assessment.domains)
+    const current = [...assessment.domains].sort()
+    if (JSON.stringify(next) !== JSON.stringify(current)) {
+      onDomainChange(next)
+    }
+  }, [nodes]) // eslint-disable-line
 
   // ── Propagate diagram changes up (debounced) for autosave ──
   const changeTimer = useRef(null)
