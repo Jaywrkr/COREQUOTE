@@ -372,6 +372,7 @@ export default function App() {
   const [site, setSite]       = useState({})
   const [domains, setDomains] = useState([])
   const [answers, setAnswers] = useState({})
+  const [diagram, setDiagram] = useState(null) // { nodes, edges } | null = not yet generated
 
   const isLoaded = useRef(false)
   const saveTimer = useRef(null)
@@ -404,11 +405,12 @@ export default function App() {
     setSite(a.site      || {})
     setDomains(a.domains || [])
     setAnswers(a.answers || {})
+    setDiagram(a.diagram || null)
     setSavedAt(a.savedAt || null)
   }
 
   // ── Autosave — debounced 600ms after any change ──
-  const scheduleAutosave = useCallback((currentId, currentClient, currentSite, currentDomains, currentAnswers) => {
+  const scheduleAutosave = useCallback((currentId, currentClient, currentSite, currentDomains, currentAnswers, currentDiagram) => {
     if (!isLoaded.current || !currentId) return
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
@@ -418,15 +420,16 @@ export default function App() {
         site:   currentSite,
         domains: currentDomains,
         answers: currentAnswers,
+        diagram: currentDiagram,
       })
       setSavedAt(result.savedAt)
     }, 600)
   }, [])
 
   useEffect(() => {
-    scheduleAutosave(id, client, site, domains, answers)
+    scheduleAutosave(id, client, site, domains, answers, diagram)
     return () => clearTimeout(saveTimer.current)
-  }, [id, client, site, domains, answers, scheduleAutosave])
+  }, [id, client, site, domains, answers, diagram, scheduleAutosave])
 
   // ── New assessment ──
   function handleNew() {
@@ -446,7 +449,7 @@ export default function App() {
     setTimeout(() => { isLoaded.current = true }, 100)
   }
 
-  const assessment   = { client, site, domains, answers }
+  const assessment   = { client, site, domains, answers, diagram }
   const clientFields = Object.values(client).filter(v => v?.toString().trim()).length
   const siteChecks   = Object.values(site.checks || {}).filter(Boolean).length
 
@@ -574,7 +577,7 @@ export default function App() {
       {/* ── Sheet overlays ── */}
       {sheet === 'diagrama' && (
         <Sheet title="Diagrama de arquitectura" onClose={() => setSheet(null)}>
-          <DiagramView assessment={assessment} />
+          <DiagramView assessment={assessment} onDiagramChange={setDiagram} />
         </Sheet>
       )}
       {sheet === 'reporte' && (

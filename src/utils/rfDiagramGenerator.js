@@ -42,6 +42,7 @@ function node(id, type, position, overrides = {}) {
       domainLabel: base.domainLabel || '',
       note: '',
       status: 'existing',
+      auto: true,
       ...overrides,
     },
   }

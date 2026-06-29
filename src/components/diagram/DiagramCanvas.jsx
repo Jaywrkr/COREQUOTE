@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import ReactFlow, {
   useNodesState,
   useEdgesState,
@@ -450,7 +450,11 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
   const [model,  setModel]  = useState(node.data.model || '')
   const modelChoices = MODEL_OPTIONS[node.data.nodeType]
 
-  const save = () => { onUpdate(node.id, { label, note, status, model }); onClose() }
+  const save = () => {
+    const labelEdited = label !== node.data.label || node.data.labelEdited
+    onUpdate(node.id, { label, note, status, model, labelEdited })
+    onClose()
+  }
 
   return (
     <div className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl" style={{ width: 280 }}>
@@ -550,16 +554,94 @@ function DiagramLegend() {
   )
 }
 
+// ─── Diagram reconciliation ───────────────────────────────────────────────────
+// Merges auto-generated diagram (from fresh assessment) into existing manual state.
+// Preserves user customizations (note, status, model, label, position) on existing nodes.
+// Adds newly required auto nodes/edges; removes auto nodes no longer required by domains.
+// Never removes manually-added nodes (auto !== true).
+function mergeDiagram(existingNodes, existingEdges, generated) {
+  const existingById = new Map(existingNodes.map(n => [n.id, n]))
+
+  const nextNodes = [
+    ...generated.nodes.map(g => {
+      const ex = existingById.get(g.id)
+      if (!ex) return g // new auto node
+      // Preserve user customizations; update auto-generated label only if user hasn't edited it
+      return {
+        ...ex,
+        position: ex.position,
+        data: {
+          ...g.data,
+          note:         ex.data.note,
+          status:       ex.data.status,
+          model:        ex.data.model,
+          label:        ex.data.labelEdited ? ex.data.label : g.data.label,
+          labelEdited:  ex.data.labelEdited,
+        },
+      }
+    }),
+    // Keep manually-added nodes not in generated set
+    ...existingNodes.filter(n => !n.data?.auto && !generated.nodes.find(g => g.id === n.id)),
+  ]
+
+  const nextNodeIds = new Set(nextNodes.map(n => n.id))
+  // Keep existing edges whose both endpoints still exist; add new generated edges not present
+  const existingEdgeIds = new Set(existingEdges.map(e => e.id))
+  const nextEdges = [
+    ...existingEdges.filter(e => nextNodeIds.has(e.source) && nextNodeIds.has(e.target)),
+    ...generated.edges.filter(e => !existingEdgeIds.has(e.id) && nextNodeIds.has(e.source) && nextNodeIds.has(e.target)),
+  ]
+
+  return { nodes: nextNodes, edges: nextEdges }
+}
+
 // ─── Main canvas ──────────────────────────────────────────────────────────────
-export default function DiagramCanvas({ assessment }) {
-  const { nodes: initNodes, edges: initEdges } = generateRFDiagram(assessment)
-  const [nodes, setNodes, onNodesChange] = useNodesState(initNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initEdges)
+export default function DiagramCanvas({ assessment, onDiagramChange }) {
+  const savedDiagram = assessment.diagram
+  const initRef = useRef(null)
+  if (!initRef.current) {
+    // One-time init: restore saved diagram or generate fresh
+    if (savedDiagram?.nodes?.length) {
+      initRef.current = savedDiagram
+    } else {
+      initRef.current = generateRFDiagram(assessment)
+    }
+  }
+  const [nodes, setNodes, onNodesChange] = useNodesState(initRef.current.nodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initRef.current.edges)
   const [selectedNode, setSelectedNode] = useState(null)
   const [showPicker, setShowPicker]     = useState(false)
   const [pendingConn, setPendingConn]   = useState(null)
   const [fullscreen, setFullscreen]     = useState(false)
   const idCounter = useRef(100)
+  const nodesRef = useRef(nodes)
+  const edgesRef = useRef(edges)
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
+  useEffect(() => { edgesRef.current = edges }, [edges])
+
+  const prevDomainsKey = useRef(JSON.stringify(assessment.domains) + JSON.stringify(assessment.answers))
+
+  // ── Reconcile diagram when form domains/answers change ──
+  useEffect(() => {
+    const key = JSON.stringify(assessment.domains) + JSON.stringify(assessment.answers)
+    if (key === prevDomainsKey.current) return
+    prevDomainsKey.current = key
+    const generated = generateRFDiagram(assessment)
+    const { nodes: n, edges: e } = mergeDiagram(nodesRef.current, edgesRef.current, generated)
+    setNodes(n)
+    setEdges(e)
+  }, [assessment.domains, assessment.answers]) // eslint-disable-line
+
+  // ── Propagate diagram changes up (debounced) for autosave ──
+  const changeTimer = useRef(null)
+  useEffect(() => {
+    if (!onDiagramChange) return
+    clearTimeout(changeTimer.current)
+    changeTimer.current = setTimeout(() => {
+      onDiagramChange({ nodes, edges })
+    }, 800)
+    return () => clearTimeout(changeTimer.current)
+  }, [nodes, edges]) // eslint-disable-line
 
   // ── Fullscreen toggle (Fullscreen API + fallback CSS overlay) ──
   const containerRef = useRef(null)
@@ -644,7 +726,7 @@ export default function DiagramCanvas({ assessment }) {
       id, type: 'ibmNode',
       position: { x: 80 + Math.random() * 200, y: 80 + Math.random() * 200 },
       data: { nodeType: type, icon: base.icon, label: base.label, brand: base.brand,
-              color: base.color, domainLabel: base.domainLabel || '', note: '', status: 'new' },
+              color: base.color, domainLabel: base.domainLabel || '', note: '', status: 'new', auto: false },
     }])
   }
 
