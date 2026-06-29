@@ -577,7 +577,7 @@ export default function App() {
       {/* ── Sheet overlays ── */}
       {sheet === 'diagrama' && (
         <Sheet title="Diagrama de arquitectura" onClose={() => setSheet(null)}>
-          <DiagramView assessment={assessment} onDiagramChange={setDiagram} />
+          <DiagramView assessment={assessment} onDiagramChange={setDiagram} onDomainChange={setDomains} />
         </Sheet>
       )}
       {sheet === 'reporte' && (
