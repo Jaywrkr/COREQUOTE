@@ -60,7 +60,6 @@ const CONN_RULES = {
   'switch→usuarios':    { options: ['Access port 1G', 'VLAN de usuarios', '2.5G (usuarios avanzados)'] },
   'switch→custom':      { options: ['1G copper', '10G SFP+', 'Fibra'] },
   'switch→internet':    { blocked: true, reason: 'Un switch de LAN no se conecta directamente a internet. El tráfico de salida pasa por el firewall o router perimetral.' },
-  'switch→usuarios→internet': { blocked: true, reason: '' }, // covered below
 
   // ── SERVIDOR ──────────────────────────────────────────────────────────────
   'servidor→switch':    { options: ['1G', '10G', 'Bonding / LAG'] },
@@ -453,7 +452,8 @@ export default function DiagramCanvas({ assessment }) {
     const rule = getRule(src.data.nodeType, tgt.data.nodeType)
     if (rule?.blocked) return
 
-    if (rule?.options && rule.options.length > 1) {
+    const needsPicker = (rule?.options && rule.options.length > 1) || rule?.warn
+    if (needsPicker) {
       setPendingConn({ params, src, tgt, rule })
     } else {
       const label = rule?.options?.[0] || ''
