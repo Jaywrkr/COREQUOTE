@@ -179,69 +179,114 @@ export function generateMermaidDiagram(assessment) {
   return lines.join('\n')
 }
 
-export function generateReport(assessment, type) {
-  const { client, domains, answers } = assessment
-  const domainLabels = {
-    redes: 'Redes (Aruba)',
-    seguridad: 'Seguridad (Check Point)',
-    servidores: 'Servidores (IBM Power / Lenovo)',
-    storage: 'Almacenamiento (IBM Storage / Synology)',
-    backup: 'Backup & DR (Veeam)',
-    virtualizacion: 'Virtualización (VMware)',
-  }
+const DOMAIN_LABELS = {
+  redes:         'Redes (Aruba)',
+  seguridad:     'Seguridad (Check Point)',
+  servidores:    'Servidores (IBM Power / Lenovo)',
+  storage:       'Almacenamiento (IBM Storage / Synology)',
+  backup:        'Backup & DR (Veeam)',
+  virtualizacion:'Virtualización (VMware)',
+}
 
+const DOMAIN_TOTAL_Q = { redes: 12, seguridad: 9, servidores: 7, storage: 5, backup: 8, virtualizacion: 6 }
+
+function domainReadinessText(d, domAnswers) {
+  const filled = Object.keys(domAnswers || {}).filter(k =>
+    k !== '_restricciones' &&
+    domAnswers[k] !== '' && domAnswers[k] !== null && domAnswers[k] !== undefined &&
+    !(Array.isArray(domAnswers[k]) && domAnswers[k].length === 0)
+  ).length
+  const total = DOMAIN_TOTAL_Q[d] || 8
+  const pct = filled / total
+  if (pct === 0)   return '🔴 Sin datos'
+  if (pct < 0.6)   return '🟡 Info parcial'
+  return '🟢 Listo para cotizar'
+}
+
+export function generateReport(assessment, type) {
+  const { client, site, domains, answers } = assessment
   const sections = []
 
-  sections.push({
-    title: 'Datos del cliente',
-    items: [
-      `Empresa: ${client.company}`,
-      `Industria: ${client.industry}`,
-      `Usuarios: ${client.userCount}`,
-      `Ubicaciones: ${client.locationCount}`,
-      `Contacto: ${client.contactName} (${client.contactRole})`,
-    ],
-  })
+  // ── Client info ──────────────────────────────────────────────────────
+  const clientItems = [`Empresa: ${client.company || '—'}`]
+  if (client.industry)      clientItems.push(`Industria: ${client.industry}`)
+  if (client.userCount)     clientItems.push(`Usuarios: ${client.userCount}`)
+  if (client.locationCount) clientItems.push(`Ubicaciones: ${client.locationCount}`)
+  if (client.contactName)   clientItems.push(`Contacto: ${client.contactName}${client.contactRole ? ` (${client.contactRole})` : ''}`)
+  sections.push({ title: 'Datos del cliente', items: clientItems })
 
+  // ── Readiness summary (interno + tecnico) ────────────────────────────
+  if (type !== 'gerencial') {
+    const readinessItems = domains.map(d => {
+      const domAnswers = answers[d] || {}
+      const status = domainReadinessText(d, domAnswers)
+      const restr = domAnswers._restricciones?.trim()
+      return `${DOMAIN_LABELS[d]}: ${status}${restr ? ` · ⚠ ${restr.slice(0, 70)}${restr.length > 70 ? '...' : ''}` : ''}`
+    })
+    sections.push({ title: 'Estado del assessment', items: readinessItems })
+  }
+
+  // ── Site (interno only) ───────────────────────────────────────────────
+  if (type === 'interno' && site) {
+    const checks = site.checks || {}
+    const fields = site.fields || {}
+    const inv    = site.inventario || []
+    const siteItems = []
+
+    if (checks.rack_disponible) siteItems.push(`Rack: Sí${fields.rack_u_libres ? ` · ${fields.rack_u_libres}U libres` : ''}`)
+    if (!checks.rack_disponible && Object.keys(checks).length > 0) siteItems.push('Rack: No disponible')
+    if (checks.ups)     siteItems.push(`UPS: Sí${fields.ups_kva ? ` (${fields.ups_kva})` : ''}`)
+    if (checks.ac_dedicado) siteItems.push('A/C dedicado: Sí')
+    if (checks.cableado_cat6) siteItems.push(`Cableado Cat 6+: Sí${fields.puntos_red ? ` · ${fields.puntos_red} puntos` : ''}`)
+    if (checks.planta_electrica) siteItems.push('Planta eléctrica: Sí')
+    if (fields.isp_nombre) siteItems.push(`ISP: ${fields.isp_nombre}${fields.ancho_banda ? ` · ${fields.ancho_banda}` : ''}`)
+    if (fields.contrato_vence) siteItems.push(`Vencimiento contrato ISP: ${fields.contrato_vence}`)
+
+    if (siteItems.length > 0) sections.push({ title: 'Condiciones del site', items: siteItems })
+
+    const invItems = inv.filter(r => r.tipo).map(r =>
+      [r.tipo, r.marca, r.modelo, r.edad ? `${r.edad} años` : '', r.estado].filter(Boolean).join(' · ')
+    )
+    if (invItems.length > 0) sections.push({ title: 'Inventario existente', items: invItems })
+  }
+
+  // ── Restrictions (interno + tecnico) ─────────────────────────────────
+  if (type !== 'gerencial') {
+    const restrictItems = domains
+      .map(d => ({ d, r: answers[d]?._restricciones?.trim() }))
+      .filter(x => x.r)
+      .map(x => `${DOMAIN_LABELS[x.d]}: ${x.r}`)
+    if (restrictItems.length > 0) sections.push({ title: '⚠ Restricciones y dependencias', items: restrictItems })
+  }
+
+  // ── Domain detail ─────────────────────────────────────────────────────
   if (type === 'interno') {
     domains.forEach(d => {
       const q = answers[d]
       if (!q) return
-      const items = Object.entries(q).map(([k, v]) => {
-        const val = Array.isArray(v) ? v.join(', ') : v
-        return `${k}: ${val}`
-      })
-      sections.push({ title: domainLabels[d] || d, items })
+      const items = Object.entries(q)
+        .filter(([k, v]) => k !== '_restricciones' && v !== '' && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0))
+        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+      if (items.length > 0) sections.push({ title: DOMAIN_LABELS[d] || d, items })
     })
   } else if (type === 'tecnico') {
-    sections.push({
-      title: 'Alcance del proyecto',
-      items: domains.map(d => domainLabels[d] || d),
-    })
+    sections.push({ title: 'Alcance del proyecto', items: domains.map(d => DOMAIN_LABELS[d] || d) })
     domains.forEach(d => {
       const q = answers[d]
       if (!q) return
-      const goalKey = Object.keys(q).find(k => k.includes('Goal') || k.includes('goal'))
+      const goalKey = Object.keys(q).find(k => /goal/i.test(k))
       if (goalKey && q[goalKey]) {
         const goals = Array.isArray(q[goalKey]) ? q[goalKey] : [q[goalKey]]
-        sections.push({ title: `Objetivos — ${domainLabels[d]}`, items: goals })
+        sections.push({ title: `Objetivos — ${DOMAIN_LABELS[d]}`, items: goals })
       }
     })
   } else {
-    sections.push({
-      title: 'Áreas de mejora identificadas',
-      items: domains.map(d => {
-        const labels = {
-          redes: 'Conectividad y red interna',
-          seguridad: 'Ciberseguridad y protección',
-          servidores: 'Infraestructura de servidores',
-          storage: 'Almacenamiento de datos',
-          backup: 'Respaldo y continuidad del negocio',
-          virtualizacion: 'Virtualización y eficiencia de recursos',
-        }
-        return labels[d] || d
-      }),
-    })
+    const gerencialLabels = {
+      redes: 'Conectividad y red interna', seguridad: 'Ciberseguridad y protección',
+      servidores: 'Infraestructura de servidores', storage: 'Almacenamiento de datos',
+      backup: 'Respaldo y continuidad del negocio', virtualizacion: 'Virtualización y eficiencia de recursos',
+    }
+    sections.push({ title: 'Áreas de mejora identificadas', items: domains.map(d => gerencialLabels[d] || d) })
     sections.push({
       title: 'Próximos pasos',
       items: [
