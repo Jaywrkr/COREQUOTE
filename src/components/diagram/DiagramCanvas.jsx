@@ -14,7 +14,7 @@ import ReactFlow, {
   getStraightPath,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { generateRFDiagram, NODE_TYPES } from '../../utils/rfDiagramGenerator'
+import { generateRFDiagram, NODE_TYPES, MODEL_OPTIONS } from '../../utils/rfDiagramGenerator'
 
 // ─── Connection rules ─────────────────────────────────────────────────────────
 // Based on real enterprise network architecture best practices.
@@ -227,6 +227,35 @@ function getRule(srcType, tgtType) {
   return null
 }
 
+// ─── Model-aware rule adjustments ──────────────────────────────────────────────
+const CORE_SWITCH_MODELS = ['CX 6400', 'CX 8100', 'CX 8325', 'CX 8360', 'CX 9300', 'CX 10000']
+
+function adjustRuleForModels(rule, srcType, srcModel, tgtType, tgtModel) {
+  if (!rule || rule.blocked) return rule
+
+  // Switches core/agregación/spine no entregan PoE directo a un AP
+  if (srcType === 'switch' && tgtType === 'ap' && CORE_SWITCH_MODELS.includes(srcModel)) {
+    return {
+      options: ['Uplink hacia switch de acceso (sin PoE directo)'],
+      warn: `Los switches core/agregación (${CORE_SWITCH_MODELS.join(', ')}) no entregan PoE directo. Coloca un switch de acceso (CX 6000–6300) entre este switch y el AP.`,
+    }
+  }
+
+  // Storage Synology no soporta Fibre Channel
+  const isSynology = m => m?.startsWith('Synology')
+  if ((srcType === 'storage' && isSynology(srcModel)) || (tgtType === 'storage' && isSynology(tgtModel))) {
+    const filtered = rule.options?.filter(o => !/Fibre Channel|FC\b/.test(o))
+    if (filtered && filtered.length !== rule.options.length) {
+      if (filtered.length === 0) {
+        return { blocked: true, reason: 'Synology no soporta Fibre Channel. Usa iSCSI, NFS/SMB o SAS según el modelo.' }
+      }
+      return { ...rule, options: filtered }
+    }
+  }
+
+  return rule
+}
+
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS = {
   existing: { label: 'LEGACY', bg: 'rgba(22,22,22,0.95)', borderStyle: 'dashed', badgeColor: '#8d8d8d', badgeBg: 'rgba(141,141,141,0.12)', dimText: true },
@@ -264,6 +293,7 @@ function IBMNode({ data, selected }) {
               {data.label}
             </p>
             {data.brand && <p className="text-[10px] text-ibm-gray50 font-mono mt-0.5 leading-tight">{data.brand}</p>}
+            {data.model && <p className="text-[10px] text-ibm-blue font-mono mt-0.5 leading-tight">{data.model}</p>}
           </div>
         </div>
         <div className="text-[9px] font-mono mt-1.5 leading-none" style={{ color: data.color, opacity: 0.8 }}>
@@ -417,8 +447,10 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
   const [label,  setLabel]  = useState(node.data.label)
   const [note,   setNote]   = useState(node.data.note || '')
   const [status, setStatus] = useState(node.data.status || 'existing')
+  const [model,  setModel]  = useState(node.data.model || '')
+  const modelChoices = MODEL_OPTIONS[node.data.nodeType]
 
-  const save = () => { onUpdate(node.id, { label, note, status }); onClose() }
+  const save = () => { onUpdate(node.id, { label, note, status, model }); onClose() }
 
   return (
     <div className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl" style={{ width: 280 }}>
@@ -468,6 +500,15 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
           <div>
             <label className="field-label">Marca / solución</label>
             <p className="text-xs text-ibm-gray30 font-mono">{node.data.brand}</p>
+          </div>
+        )}
+        {modelChoices && (
+          <div>
+            <label className="field-label">Modelo</label>
+            <select className="field text-sm" value={model} onChange={e => setModel(e.target.value)}>
+              <option value="">— Sin especificar —</option>
+              {modelChoices.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
         )}
       </div>
@@ -541,7 +582,7 @@ export default function DiagramCanvas({ assessment }) {
     const src = nodes.find(n => n.id === connection.source)
     const tgt = nodes.find(n => n.id === connection.target)
     if (!src || !tgt || src.id === tgt.id) return false
-    const rule = getRule(src.data.nodeType, tgt.data.nodeType)
+    const rule = adjustRuleForModels(getRule(src.data.nodeType, tgt.data.nodeType), src.data.nodeType, src.data.model, tgt.data.nodeType, tgt.data.model)
     return !rule?.blocked
   }, [nodes])
 
@@ -551,7 +592,7 @@ export default function DiagramCanvas({ assessment }) {
     const tgt = nodes.find(n => n.id === params.target)
     if (!src || !tgt) return
 
-    const rule = getRule(src.data.nodeType, tgt.data.nodeType)
+    const rule = adjustRuleForModels(getRule(src.data.nodeType, tgt.data.nodeType), src.data.nodeType, src.data.model, tgt.data.nodeType, tgt.data.model)
     if (rule?.blocked) return
 
     const needsPicker = (rule?.options && rule.options.length > 1) || rule?.warn

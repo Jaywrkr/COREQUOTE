@@ -18,6 +18,15 @@ const NODE_TYPES = {
 
 export { NODE_TYPES }
 
+export const MODEL_OPTIONS = {
+  servidor: ['SR630 V4', 'SR650 V4', 'SR665 V3', 'SR635 V3', 'SR675i', 'SR650i', 'SR680a V4', 'ThinkEdge SE455i'],
+  power:    ['S1012', 'S1014', 'S1022', 'S1024', 'E1050', 'E1080'],
+  storage:  ['FlashSystem 5600', 'FlashSystem 7600', 'FlashSystem 9600', 'Synology RS6426xs+', 'Synology RS4826xs+', 'Synology RS3626xs', 'Synology RS1626xs+', 'Synology DS1825+', 'Synology DS1525+', 'Synology DS925+', 'Synology DS725+', 'Synology FS200T'],
+  tape:     ['TS4300', 'TS4500'],
+  switch:   ['CX 6000', 'CX 6100', 'CX 6200', 'CX 6300', 'CX 6400', 'CX 8100', 'CX 8325', 'CX 8360', 'CX 9300', 'CX 10000', 'CX 4100i'],
+  firewall: ['Quantum 3600', 'Quantum 3800', 'Quantum 6000', 'Quantum 26000', 'Quantum 28000', 'Quantum Force', 'Quantum Lightspeed'],
+}
+
 function node(id, type, position, overrides = {}) {
   const base = NODE_TYPES[type] || NODE_TYPES.custom
   return {
