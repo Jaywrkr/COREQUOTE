@@ -17,43 +17,132 @@ import 'reactflow/dist/style.css'
 import { generateRFDiagram, NODE_TYPES } from '../../utils/rfDiagramGenerator'
 
 // ─── Connection rules ─────────────────────────────────────────────────────────
+// Based on real enterprise network architecture best practices.
+// blocked: true  → connection is architecturally invalid, cannot be drawn
+// warn: string   → connection is technically possible but risky/unusual
+// options: []    → valid connection types for that pair
 const CONN_RULES = {
+
+  // ── INTERNET ──────────────────────────────────────────────────────────────
+  // Internet only enters through a firewall or (in small offices) a switch.
+  // Nothing on the internal network should connect back to internet directly.
   'internet→firewall':  { options: ['WAN principal', 'WAN secundario (failover)', 'Internet dedicado'] },
-  'internet→switch':    { options: ['Conexión directa (sin FW)'], warn: 'Sin firewall perimetral — riesgo de seguridad alto' },
-  'internet→router':    { options: ['WAN'] },
-  'internet→servidor':  { options: ['Acceso directo'], warn: 'Servidor expuesto sin firewall — vulnerabilidad crítica' },
-  'firewall→switch':    { options: ['LAN', 'DMZ', 'VLAN trunk', 'Management'] },
-  'firewall→servidor':  { options: ['DMZ', 'Segmento protegido'] },
-  'firewall→backup':    { options: ['LAN backup'] },
-  'firewall→firewall':  { options: ['HA (Alta disponibilidad)', 'Cluster activo/pasivo'] },
-  'switch→switch':      { options: ['Uplink 1G', 'Uplink 10G', 'Stack', 'Fibra óptica'] },
-  'switch→ap':          { options: ['PoE (802.3af)', 'PoE+ (802.3at)', 'Uplink fibra'] },
-  'switch→servidor':    { options: ['1G copper', '10G SFP+', 'Bonding / LAG'] },
-  'switch→storage':     { options: ['iSCSI 1G', 'iSCSI 10G', 'NFS', 'SMB/CIFS'] },
-  'switch→vm':          { options: ['1G', '10G SFP+', 'Bonding / LAG'] },
-  'switch→backup':      { options: ['LAN backup', '10G dedicado'] },
-  'switch→usuarios':    { options: ['Access port', 'VLAN usuario'] },
-  'switch→custom':      { options: ['1G', '10G', 'Fibra'] },
-  'servidor→storage':   { options: ['iSCSI', 'Fibre Channel (FC)', 'NFS', 'SMB/CIFS', 'SAS directo (DAS)'] },
-  'servidor→servidor':  { options: ['Cluster / heartbeat', 'Replicación', 'HA link'] },
-  'servidor→vm':        { options: ['Hipervisor local'] },
-  'servidor→backup':    { options: ['Agent Veeam', 'Agentless'] },
-  'vm→storage':         { options: ['VMFS / vSAN', 'NFS datastore', 'iSCSI datastore'] },
-  'vm→vm':              { options: ['vMotion', 'Replicación', 'Cluster HA'] },
-  'vm→backup':          { options: ['Snapshot VMware', 'Agentless Veeam', 'CDP (continuo)'] },
-  'backup→storage':     { options: ['Repository local', 'Scale-out Backup Repo', 'Object storage (S3)'] },
-  'backup→backup':      { options: ['Replica job', 'Copy job offsite'] },
-  'ap→usuarios':        { options: ['WiFi 2.4 GHz (802.11n)', 'WiFi 5 GHz (802.11ac)', 'WiFi 6 (802.11ax)', 'WiFi 6E'] },
-  // Blocked — arquitectónicamente incorrectos
-  'internet→storage':   { blocked: true, reason: 'El storage no debe estar expuesto directamente a internet.' },
-  'internet→usuarios':  { blocked: true, reason: 'Los usuarios se conectan a través de la red interna, no directo a internet.' },
-  'storage→internet':   { blocked: true, reason: 'El storage no debe tener salida directa a internet.' },
-  'usuarios→storage':   { blocked: true, reason: 'Los usuarios acceden al storage a través de servidores o NAS, no directamente.' },
+  'internet→switch':    { options: ['Conexión directa (sin FW)'], warn: 'Sin firewall perimetral. Aceptable solo en SOHO (<10 usuarios). No recomendado en entornos empresariales.' },
+  'internet→ap':        { options: ['ISP directo a AP'], warn: 'Solo válido en entornos SOHO muy pequeños. En empresas, el AP debe estar detrás del firewall.' },
+  'internet→servidor':  { blocked: true, reason: 'Los servidores nunca deben exponerse directamente a internet sin un firewall perimetral. Riesgo crítico de intrusión y ransomware.' },
+  'internet→storage':   { blocked: true, reason: 'El storage (IBM, Synology, etc.) JAMÁS debe tener conexión directa a internet. Riesgo de exposición total de datos y ransomware.' },
+  'internet→backup':    { blocked: true, reason: 'El servidor de backup no debe estar expuesto a internet. El backup en nube debe salir a través del firewall.' },
+  'internet→vm':        { blocked: true, reason: 'Los hosts de virtualización no deben conectarse directamente a internet.' },
+  'internet→usuarios':  { blocked: true, reason: 'Los dispositivos de usuario se conectan a internet a través de la red interna y el firewall, no directamente.' },
+
+  // ── FIREWALL ──────────────────────────────────────────────────────────────
+  // Firewall connects to switches for LAN/DMZ segments, or directly to servers in DMZ.
+  'firewall→switch':    { options: ['LAN (red interna)', 'DMZ', 'VLAN trunk', 'Management OOB'] },
+  'firewall→servidor':  { options: ['DMZ directa', 'Segmento interno protegido'] },
+  'firewall→backup':    { options: ['Segmento backup'] },
+  'firewall→storage':   { options: ['Segmento storage'], warn: 'El storage raramente se conecta directamente al firewall. Considera un switch de storage dedicado entre ambos.' },
+  'firewall→firewall':  { options: ['HA activo/pasivo', 'Cluster HA', 'Sync de estado'] },
+  'firewall→internet':  { options: ['Salida WAN (outbound)'] },
+  'firewall→usuarios':  { blocked: true, reason: 'Los usuarios no se conectan directamente al firewall. Deben pasar por un switch.' },
+  'firewall→ap':        { blocked: true, reason: 'Los APs no se conectan directamente al firewall. Deben conectarse al switch, que a su vez conecta al firewall.' },
+  'firewall→vm':        { blocked: true, reason: 'Los hosts de virtualización no se conectan directamente al firewall.' },
+
+  // ── SWITCH ────────────────────────────────────────────────────────────────
+  // Switch (Aruba, Cisco, etc.) is the central connector for LAN.
+  // CAN connect to storage via iSCSI/NFS over Ethernet — this is standard SAN over IP.
+  'switch→switch':      { options: ['Uplink 1G', 'Uplink 10G', 'Stack (Aruba VSF/IRF)', 'Fibra óptica', 'MLAG / LAG'] },
+  'switch→firewall':    { options: ['Uplink a FW', 'Trunk de VLANs'] },
+  'switch→ap':          { options: ['PoE (802.3af — 15.4W)', 'PoE+ (802.3at — 30W)', 'PoE++ (802.3bt — 60W)', 'Uplink fibra (AP outdoor)'] },
+  'switch→servidor':    { options: ['1G copper', '10G SFP+', '25G SFP28', 'Bonding / LAG (LACP)'] },
+  'switch→storage':     { options: ['iSCSI 1G', 'iSCSI 10G (dedicado)', 'NFS over Ethernet', 'SMB/CIFS', 'Management 1G'] },
+  'switch→vm':          { options: ['1G (acceso)', '10G SFP+ (trunk)', '25G SFP28', 'Bonding / LAG (LACP)', 'VLAN trunk (vSwitch/vDS)'] },
+  'switch→backup':      { options: ['LAN backup 1G', '10G dedicado backup', 'Segmento backup VLAN'] },
+  'switch→usuarios':    { options: ['Access port 1G', 'VLAN de usuarios', '2.5G (usuarios avanzados)'] },
+  'switch→custom':      { options: ['1G copper', '10G SFP+', 'Fibra'] },
+  'switch→internet':    { blocked: true, reason: 'Un switch de LAN no se conecta directamente a internet. El tráfico de salida pasa por el firewall o router perimetral.' },
+  'switch→usuarios→internet': { blocked: true, reason: '' }, // covered below
+
+  // ── SERVIDOR ──────────────────────────────────────────────────────────────
+  'servidor→switch':    { options: ['1G', '10G', 'Bonding / LAG'] },
+  'servidor→storage':   { options: ['iSCSI (sobre IP)', 'Fibre Channel (FC — HBA requerido)', 'NFS (protocolo de archivos)', 'SMB/CIFS', 'SAS directo (DAS — sin switch)'] },
+  'servidor→servidor':  { options: ['Cluster / heartbeat', 'Replicación de datos', 'HA link', 'Crossover directo'] },
+  'servidor→vm':        { options: ['Hipervisor — el servidor ES el host'] },
+  'servidor→backup':    { options: ['Agent Veeam (instalado en SO)', 'Agentless (vía hipervisor)'] },
+  'servidor→firewall':  { options: ['Uplink — segmento DMZ'] },
+  'servidor→internet':  { blocked: true, reason: 'Los servidores no deben conectarse directamente a internet. El tráfico de salida (actualizaciones, etc.) pasa por el firewall.' },
+  'servidor→usuarios':  { blocked: true, reason: 'Topológicamente los usuarios acceden a los servidores, no al revés. Representa el flujo al revés si es necesario.' },
+  'servidor→ap':        { blocked: true, reason: 'Los servidores no se conectan a APs de WiFi.' },
+
+  // ── STORAGE ───────────────────────────────────────────────────────────────
+  // Storage (IBM FlashSystem, Storwize, Synology, etc.) connects to:
+  // - Servers via iSCSI/FC/NFS
+  // - Switches via iSCSI/NFS Ethernet
+  // - Backup servers as backup source
+  // NEVER to internet, users, or firewall directly.
+  'storage→switch':     { options: ['iSCSI 10G (datos)', 'NFS / SMB (datos)', 'Management 1G (admin)'] },
+  'storage→servidor':   { options: ['iSCSI target presentado', 'NFS export', 'Fibre Channel (FC)'] },
+  'storage→backup':     { options: ['Fuente de backup', 'Replicación de volúmenes', 'Snapshot remoto'] },
+  'storage→storage':    { options: ['Replicación (IBM Metro Mirror)', 'Mirroring síncrono', 'Mirroring asíncrono', 'Snapshot remoto'] },
+  'storage→vm':         { options: ['Volumen / LUN presentado al host'] },
+  'storage→internet':   { blocked: true, reason: 'El storage (IBM, Synology, etc.) NUNCA debe tener conexión a internet. Riesgo de exfiltración de datos y ransomware directo al storage.' },
+  'storage→usuarios':   { blocked: true, reason: 'Los usuarios no acceden al storage SAN directamente. Acceden a través de servidores de archivos, aplicaciones o NAS con protocolo SMB/NFS gestionado.' },
+  'storage→firewall':   { blocked: true, reason: 'El storage no debe conectarse directamente al firewall.' },
+  'storage→ap':         { blocked: true, reason: 'El storage no se conecta a APs inalámbricos.' },
+
+  // ── VIRTUALIZACIÓN (VM/host) ──────────────────────────────────────────────
+  'vm→switch':          { options: ['vSwitch estándar', 'vDS (Distributed Switch)', 'Uplink 10G', 'Bonding / LAG'] },
+  'vm→storage':         { options: ['VMFS en SAN', 'NFS datastore', 'iSCSI datastore', 'vSAN (storage distribuido)', 'RDM (Raw Device Mapping)'] },
+  'vm→vm':              { options: ['vMotion (migración en vivo)', 'Replicación (Veeam/SRM)', 'Cluster HA / FT', 'vSAN stretch cluster'] },
+  'vm→backup':          { options: ['Snapshot VMware (quiesce)', 'Agentless Veeam (VADP)', 'CDP continuo (Veeam)'] },
+  'vm→servidor':        { options: ['VM actúa como servidor físico'] },
+  'vm→firewall':        { blocked: true, reason: 'Los hosts de virtualización no se conectan directamente al firewall.' },
+  'vm→internet':        { blocked: true, reason: 'Los hosts de virtualización no tienen conexión directa a internet. El tráfico de las VMs sale por el switch y el firewall.' },
+  'vm→usuarios':        { blocked: true, reason: 'Topológicamente los usuarios acceden a las VMs, no al revés.' },
+  'vm→ap':              { blocked: true, reason: 'Los hosts de virtualización no se conectan a APs WiFi.' },
+
+  // ── BACKUP ────────────────────────────────────────────────────────────────
+  // Veeam, etc. connects to servers/VMs as client and to storage as repository.
+  'backup→switch':      { options: ['LAN backup 1G', '10G dedicado backup'] },
+  'backup→servidor':    { options: ['Agent Veeam (push/pull)', 'Agentless via hipervisor'] },
+  'backup→vm':          { options: ['Snapshot VMware (VADP)', 'Agentless Veeam', 'CDP (continuo)'] },
+  'backup→storage':     { options: ['Backup Repository local', 'Scale-out Backup Repository', 'Object Storage (S3/Azure Blob)', 'Cinta (Tape)'] },
+  'backup→backup':      { options: ['Replica job (offsite)', 'Copy job a sitio alterno', 'Tape offload'] },
+  'backup→internet':    { blocked: true, reason: 'El servidor de backup no se conecta directamente a internet. El backup en nube (Veeam Cloud Connect, etc.) sale a través del firewall.' },
+  'backup→usuarios':    { blocked: true, reason: 'Los usuarios no se conectan directamente al servidor de backup.' },
+  'backup→firewall':    { blocked: true, reason: 'El servidor de backup no se conecta directamente al firewall.' },
+  'backup→ap':          { blocked: true, reason: 'El servidor de backup no se conecta a APs WiFi.' },
+
+  // ── ACCESS POINT ──────────────────────────────────────────────────────────
+  'ap→usuarios':        { options: ['WiFi 2.4 GHz (802.11n/ac)', 'WiFi 5 GHz (802.11ac/ax)', 'WiFi 6 (802.11ax)', 'WiFi 6E (6 GHz)'] },
+  'ap→switch':          { options: ['Uplink PoE al switch', 'Uplink fibra (AP outdoor)'] },
+  'ap→internet':        { blocked: true, reason: 'El AP no se conecta directamente a internet. El tráfico WiFi sube al switch y sale por el firewall.' },
+  'ap→servidor':        { blocked: true, reason: 'El AP no se conecta directamente a servidores. Los clientes WiFi acceden a través del switch y la red interna.' },
+  'ap→storage':         { blocked: true, reason: 'El AP no tiene conexión directa al storage.' },
+  'ap→backup':          { blocked: true, reason: 'El AP no tiene conexión directa al servidor de backup.' },
+  'ap→vm':              { blocked: true, reason: 'El AP no se conecta directamente a hosts de virtualización.' },
+  'ap→firewall':        { blocked: true, reason: 'El AP no se conecta directamente al firewall.' },
+
+  // ── USUARIOS ──────────────────────────────────────────────────────────────
+  'usuarios→switch':    { options: ['Ethernet 1G (cable)', 'Ethernet 2.5G', 'VLAN de usuarios'] },
+  'usuarios→ap':        { options: ['Cliente WiFi inalámbrico'] },
+  'usuarios→internet':  { blocked: true, reason: 'Los usuarios acceden a internet a través de la red interna y el firewall. No hay conexión directa.' },
+  'usuarios→storage':   { blocked: true, reason: 'Los usuarios no acceden al storage SAN/NAS directamente. Acceden a través de aplicaciones, servidores de archivos o shares de red administrados.' },
+  'usuarios→backup':    { blocked: true, reason: 'Los usuarios no se conectan al servidor de backup directamente.' },
+  'usuarios→firewall':  { blocked: true, reason: 'Los usuarios no se conectan directamente al firewall.' },
+  'usuarios→vm':        { blocked: true, reason: 'Los usuarios acceden a servicios en VMs a través de la red, no directamente al host.' },
+  'usuarios→servidor':  { options: ['Acceso a aplicación / servicio'], warn: 'En arquitectura, este flujo suele representarse al revés (servidor provee servicio a usuarios). Verifica la dirección.' },
 }
 
 function getRule(srcType, tgtType) {
   if (!srcType || !tgtType) return null
-  return CONN_RULES[`${srcType}→${tgtType}`] || null
+  // Normalize 'custom' nodes — allow generic connection from/to custom
+  const key = `${srcType}→${tgtType}`
+  if (CONN_RULES[key]) return CONN_RULES[key]
+  // If either side is 'custom', allow with generic options
+  if (srcType === 'custom' || tgtType === 'custom') {
+    return { options: ['Conexión genérica', '1G Ethernet', '10G Ethernet', 'Fibra óptica'] }
+  }
+  return null
 }
 
 // ─── Status config ────────────────────────────────────────────────────────────
