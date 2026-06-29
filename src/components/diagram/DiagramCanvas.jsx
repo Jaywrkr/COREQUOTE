@@ -13,39 +13,98 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { generateRFDiagram, NODE_TYPES } from '../../utils/rfDiagramGenerator'
 
+// ─── Status config ────────────────────────────────────────────────────────────
+const STATUS = {
+  existing: {
+    label: 'LEGACY',
+    bg: 'rgba(22,22,22,0.95)',
+    borderStyle: 'dashed',
+    badgeColor: '#8d8d8d',
+    badgeBg: 'rgba(141,141,141,0.12)',
+    dimText: true,
+  },
+  new: {
+    label: 'NUEVO',
+    bg: 'rgba(15,98,254,0.08)',
+    borderStyle: 'solid',
+    badgeColor: '#0f62fe',
+    badgeBg: 'rgba(15,98,254,0.15)',
+    dimText: false,
+  },
+}
+
 // ─── Custom IBM-styled node ───────────────────────────────────────────────────
 function IBMNode({ data, selected }) {
+  const st = STATUS[data.status] || STATUS.existing
+
   return (
     <div
-      className={`
-        min-w-[130px] border transition-all cursor-pointer select-none
-        bg-ibm-gray90 dark:bg-ibm-gray90
-        ${selected
-          ? 'border-ibm-blue shadow-[0_0_0_2px_rgba(15,98,254,0.3)]'
-          : 'border-ibm-gray70 hover:border-ibm-gray50'
-        }
-      `}
-      style={{ borderLeftColor: data.color, borderLeftWidth: 3 }}
+      style={{
+        borderLeftColor: data.color,
+        borderLeftWidth: 4,
+        borderLeftStyle: 'solid',
+        borderTopColor:    selected ? '#0f62fe' : '#525252',
+        borderRightColor:  selected ? '#0f62fe' : '#525252',
+        borderBottomColor: selected ? '#0f62fe' : '#525252',
+        borderTopStyle:    st.borderStyle,
+        borderRightStyle:  st.borderStyle,
+        borderBottomStyle: st.borderStyle,
+        borderTopWidth: 1,
+        borderRightWidth: 1,
+        borderBottomWidth: 1,
+        background: st.bg,
+        boxShadow: selected ? '0 0 0 2px rgba(15,98,254,0.35)' : undefined,
+        minWidth: 140,
+      }}
+      className="transition-all cursor-pointer select-none"
     >
       <Handle type="target" position={Position.Top} style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
-      <div className="px-3 py-2.5">
+
+      <div className="px-3 py-2">
+        {/* Status badge */}
+        <div className="flex items-center justify-between mb-1.5">
+          <span
+            className="text-[9px] font-bold tracking-widest px-1.5 py-0.5 font-mono"
+            style={{ color: st.badgeColor, backgroundColor: st.badgeBg }}
+          >
+            {st.label}
+          </span>
+          <div className="flex items-center gap-1">
+            {data.note && (
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: '#f1c21b' }}
+                title="Tiene nota"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Icon + label */}
         <div className="flex items-start gap-2">
           <span className="text-base leading-none mt-0.5 flex-shrink-0">{data.icon}</span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-ibm-gray10 leading-tight break-words">{data.label}</p>
+            <p
+              className="text-xs font-semibold leading-tight break-words"
+              style={{ color: st.dimText ? '#a8a8a8' : '#f4f4f4' }}
+            >
+              {data.label}
+            </p>
             {data.brand && (
               <p className="text-[10px] text-ibm-gray50 font-mono mt-0.5 leading-tight">{data.brand}</p>
             )}
           </div>
-          {data.note && (
-            <span
-              className="w-2 h-2 rounded-full flex-shrink-0 mt-0.5"
-              style={{ backgroundColor: '#f1c21b' }}
-              title="Tiene nota"
-            />
-          )}
+        </div>
+
+        {/* Domain color bar label */}
+        <div
+          className="text-[9px] font-mono mt-1.5 leading-none"
+          style={{ color: data.color, opacity: 0.8 }}
+        >
+          {data.domainLabel || ''}
         </div>
       </div>
+
       <Handle type="source" position={Position.Bottom} style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
     </div>
   )
@@ -72,6 +131,7 @@ function AddNodePicker({ onAdd, onClose }) {
     <div className="absolute top-12 left-2 z-10 bg-ibm-gray90 border border-ibm-gray70 shadow-xl w-52" onClick={e => e.stopPropagation()}>
       <div className="px-3 py-2 border-b border-ibm-gray70">
         <p className="text-xs font-semibold text-ibm-gray30 uppercase tracking-widest">Agregar nodo</p>
+        <p className="text-[10px] text-ibm-gray50 mt-0.5">Se añade como propuesta nueva</p>
       </div>
       <div className="py-1">
         {ADDABLE_NODES.map(n => {
@@ -94,21 +154,25 @@ function AddNodePicker({ onAdd, onClose }) {
 
 // ─── Note panel ───────────────────────────────────────────────────────────────
 function NotePanel({ node, onUpdate, onClose, onDelete }) {
-  const [label, setLabel] = useState(node.data.label)
-  const [note,  setNote]  = useState(node.data.note || '')
+  const [label,  setLabel]  = useState(node.data.label)
+  const [note,   setNote]   = useState(node.data.note || '')
+  const [status, setStatus] = useState(node.data.status || 'existing')
 
   const save = () => {
-    onUpdate(node.id, { label, note })
+    onUpdate(node.id, { label, note, status })
     onClose()
   }
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 w-72 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl">
+    <div
+      className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl"
+      style={{ width: 280 }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-ibm-gray70 flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-lg">{node.data.icon}</span>
-          <span className="text-xs font-semibold text-ibm-gray10 truncate max-w-[150px]">{node.data.label}</span>
+          <span className="text-xs font-semibold text-ibm-gray10 truncate max-w-[160px]">{node.data.label}</span>
         </div>
         <button onClick={onClose} className="text-ibm-gray50 hover:text-ibm-gray10 transition-colors p-1">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,6 +183,37 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
 
       {/* Fields */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+        {/* Status toggle — most prominent */}
+        <div>
+          <label className="field-label mb-2">Estado del equipo</label>
+          <div className="flex">
+            {[
+              { value: 'existing', label: '📦 Legacy', desc: 'Ya existe en el cliente' },
+              { value: 'new',      label: '✨ Nuevo',  desc: 'Propuesta CoreSolutions' },
+            ].map((s, i) => (
+              <button
+                key={s.value}
+                onClick={() => setStatus(s.value)}
+                title={s.desc}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors border
+                  ${i === 0 ? 'border-r-0' : ''}
+                  ${status === s.value
+                    ? s.value === 'new'
+                      ? 'bg-ibm-blue text-white border-ibm-blue'
+                      : 'bg-ibm-gray70 text-ibm-gray10 border-ibm-gray70'
+                    : 'border-ibm-gray60 text-ibm-gray50 hover:border-ibm-gray50'
+                  }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-ibm-gray50 mt-1">
+            {status === 'existing' ? 'Infraestructura actual del cliente' : 'Equipo / solución que se va a proponer'}
+          </p>
+        </div>
+
         <div>
           <label className="field-label">Nombre del nodo</label>
           <input
@@ -135,14 +230,14 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
           </label>
           <textarea
             className="field resize-none text-sm"
-            rows={6}
+            rows={5}
             value={note}
             onChange={e => setNote(e.target.value)}
-            placeholder="Ej: Switch HP sin garantía, instalado en 2016. Cliente confirmó que es no administrado. Prioridad de reemplazo alta..."
+            placeholder="Ej: Switch HP sin garantía, instalado en 2016. No administrado. Prioridad de reemplazo alta..."
             autoFocus
           />
           <p className="text-xs text-ibm-gray50 mt-1">
-            Queda guardada en el assessment y aparece en el reporte interno.
+            Visible en el reporte interno del assessment.
           </p>
         </div>
 
@@ -156,11 +251,8 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
 
       {/* Actions */}
       <div className="flex gap-2 p-4 border-t border-ibm-gray70 flex-shrink-0">
-        <button
-          onClick={save}
-          className="btn-primary flex-1 text-xs py-2"
-        >
-          Guardar nota
+        <button onClick={save} className="btn-primary flex-1 text-xs py-2">
+          Guardar
         </button>
         <button
           onClick={() => { onDelete(node.id); onClose() }}
@@ -171,6 +263,28 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Legend ───────────────────────────────────────────────────────────────────
+function DiagramLegend() {
+  return (
+    <div className="flex items-center gap-3 px-3 py-1.5 bg-ibm-gray90 border border-ibm-gray70 text-[10px]">
+      <div className="flex items-center gap-1.5">
+        <div className="w-6 h-3 border border-dashed border-ibm-gray50 bg-ibm-gray100" />
+        <span className="text-ibm-gray50 font-mono">LEGACY — equipo actual</span>
+      </div>
+      <div className="w-px h-3 bg-ibm-gray70" />
+      <div className="flex items-center gap-1.5">
+        <div className="w-6 h-3 border border-solid border-ibm-blue bg-ibm-blue/10" />
+        <span className="text-ibm-gray50 font-mono">NUEVO — propuesta</span>
+      </div>
+      <div className="w-px h-3 bg-ibm-gray70" />
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-ibm-yellow" />
+        <span className="text-ibm-gray50 font-mono">tiene nota</span>
       </div>
     </div>
   )
@@ -217,7 +331,16 @@ export default function DiagramCanvas({ assessment }) {
       id,
       type: 'ibmNode',
       position: { x: 80 + Math.random() * 200, y: 80 + Math.random() * 200 },
-      data: { nodeType: type, icon: base.icon, label: base.label, brand: base.brand, color: base.color, note: '' },
+      data: {
+        nodeType: type,
+        icon: base.icon,
+        label: base.label,
+        brand: base.brand,
+        color: base.color,
+        note: '',
+        status: 'new',       // manually added = proposed new equipment
+        domainLabel: base.domainLabel || '',
+      },
     }
     setNodes(ns => [...ns, newNode])
   }
@@ -236,7 +359,6 @@ export default function DiagramCanvas({ assessment }) {
         fitView
         fitViewOptions={{ padding: 0.3 }}
         deleteKeyCode="Delete"
-        className="bg-ibm-gray100"
         style={{ background: '#161616' }}
       >
         <Background color="#262626" variant={BackgroundVariant.Dots} gap={20} size={1} />
@@ -247,28 +369,31 @@ export default function DiagramCanvas({ assessment }) {
 
         {/* Toolbar */}
         <Panel position="top-left">
-          <div className="flex items-center gap-2 relative">
-            <button
-              onClick={() => { setShowPicker(p => !p); setSelectedNode(null) }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-colors
-                ${showPicker
-                  ? 'bg-ibm-blue text-white border-ibm-blue'
-                  : 'bg-ibm-gray90 text-ibm-gray10 border-ibm-gray70 hover:border-ibm-gray50'
-                }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Agregar
-            </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 relative">
+              <button
+                onClick={() => { setShowPicker(p => !p); setSelectedNode(null) }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-colors
+                  ${showPicker
+                    ? 'bg-ibm-blue text-white border-ibm-blue'
+                    : 'bg-ibm-gray90 text-ibm-gray10 border-ibm-gray70 hover:border-ibm-gray50'
+                  }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Agregar
+              </button>
 
-            <p className="text-[10px] text-ibm-gray50 hidden sm:block">
-              Arrastra nodos · Conecta con drag desde los puntos · Click para notas · Delete para eliminar
-            </p>
+              <p className="text-[10px] text-ibm-gray50 hidden sm:block">
+                Arrastra · Conecta desde los puntos · Click para editar · Delete para eliminar
+              </p>
 
-            {showPicker && (
-              <AddNodePicker onAdd={addNode} onClose={() => setShowPicker(false)} />
-            )}
+              {showPicker && (
+                <AddNodePicker onAdd={addNode} onClose={() => setShowPicker(false)} />
+              )}
+            </div>
+            <DiagramLegend />
           </div>
         </Panel>
       </ReactFlow>

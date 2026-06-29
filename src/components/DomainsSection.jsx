@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { DOMAINS, DOMAIN_QUESTIONS } from '../data/domains'
 import { calcReadiness } from './steps/Questionnaire'
+import { usePrefs } from '../hooks/usePrefs'
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 function Toggle({ on, onToggle }) {
@@ -30,7 +32,7 @@ function ReadinessBadge({ domainId, answers }) {
   )
 }
 
-// ─── Question field — Approach C ──────────────────────────────────────────────
+// ─── Question field ───────────────────────────────────────────────────────────
 function QuestionField({ q, value, onChange, answers }) {
   const conditionMet = q.condition
     ? q.condition.notValue
@@ -42,7 +44,6 @@ function QuestionField({ q, value, onChange, answers }) {
   const set = v => onChange(q.key, v)
   const isFilled = value !== undefined && value !== '' && value !== null && !(Array.isArray(value) && value.length === 0)
 
-  // ── Inline row: label left, chips right (for select + number)
   if (q.type === 'select') {
     const isBinary = q.options.length === 2
     return (
@@ -154,35 +155,100 @@ function QuestionField({ q, value, onChange, answers }) {
   return null
 }
 
-// ─── Domain section block ─────────────────────────────────────────────────────
-function SectionBlock({ label, questions, answers, onChange }) {
+// ─── Section block with favorite / hide controls ──────────────────────────────
+function SectionBlock({ domainId, label, questions, answers, onChange, pref, onPrefChange }) {
+  const [manualOpen, setManualOpen] = useState(false)
+
+  const isHidden    = pref === 'hidden'
+  const isFavorite  = pref === 'favorite'
+  const isCollapsed = isHidden && !manualOpen
+
+  const cycleHide = e => {
+    e.stopPropagation()
+    onPrefChange(isHidden ? 'normal' : 'hidden')
+    setManualOpen(false)
+  }
+
+  const cycleFav = e => {
+    e.stopPropagation()
+    onPrefChange(isFavorite ? 'normal' : 'favorite')
+  }
+
   return (
-    <div className="mb-1">
-      <div className="px-0 py-1 mb-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-ibm-gray50 dark:text-ibm-gray30 bg-ibm-gray20 dark:bg-ibm-gray80 px-2 py-0.5">
-          {label}
+    <div className={`mb-1 ${isHidden ? 'opacity-60' : ''}`}>
+      {/* Section header */}
+      <div className="flex items-center gap-2 py-1 mb-0.5 group">
+        <span
+          className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 flex-1
+            ${isFavorite
+              ? 'bg-ibm-blue/20 text-ibm-blue dark:text-ibm-blue border-l-2 border-ibm-blue pl-1.5'
+              : 'bg-ibm-gray20 dark:bg-ibm-gray80 text-ibm-gray50 dark:text-ibm-gray30'
+            }`}
+        >
+          {isFavorite && '★ '}{label}
         </span>
+
+        {/* Controls — always visible, small */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Favorite */}
+          <button
+            onClick={cycleFav}
+            title={isFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+            className={`p-1 rounded transition-colors text-[11px] leading-none
+              ${isFavorite ? 'text-ibm-blue' : 'text-ibm-gray50 hover:text-ibm-gray30'}`}
+          >
+            {isFavorite ? '★' : '☆'}
+          </button>
+          {/* Hide */}
+          <button
+            onClick={cycleHide}
+            title={isHidden ? 'Mostrar sección' : 'Ocultar sección'}
+            className={`p-1 rounded transition-colors text-[11px] leading-none
+              ${isHidden ? 'text-ibm-yellow' : 'text-ibm-gray50 hover:text-ibm-gray30'}`}
+          >
+            {isHidden ? '⊕' : '⊖'}
+          </button>
+        </div>
       </div>
-      <div>
-        {questions.map(q => (
-          <QuestionField
-            key={q.id} q={q}
-            value={(answers || {})[q.key]}
-            onChange={(key, val) => onChange({ ...answers, [key]: val })}
-            answers={answers || {}}
-          />
-        ))}
-      </div>
+
+      {/* Questions — hidden unless manually opened */}
+      {isCollapsed ? (
+        <button
+          onClick={() => setManualOpen(true)}
+          className="text-[10px] text-ibm-gray50 hover:text-ibm-gray30 px-1 py-0.5 transition-colors"
+        >
+          mostrar {questions.length} preguntas
+        </button>
+      ) : (
+        <div>
+          {questions.map(q => (
+            <QuestionField
+              key={q.id} q={q}
+              value={(answers || {})[q.key]}
+              onChange={(key, val) => onChange({ ...answers, [key]: val })}
+              answers={answers || {}}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── Domain row ───────────────────────────────────────────────────────────────
-function DomainRow({ domain, enabled, onToggle, answers, onChange }) {
+function DomainRow({ domain, enabled, onToggle, answers, onChange, getSection, setSection }) {
   const questions  = DOMAIN_QUESTIONS[domain.id] || []
   const domAnswers = answers || {}
   const filled     = Object.keys(domAnswers).filter(k => k !== '_restricciones').length
   const sections   = [...new Set(questions.map(q => q.section))]
+
+  // Sort: favorites first, then normal, hidden last
+  const sortedSections = [...sections].sort((a, b) => {
+    const pa = getSection(domain.id, a)
+    const pb = getSection(domain.id, b)
+    const order = { favorite: 0, normal: 1, hidden: 2 }
+    return (order[pa] ?? 1) - (order[pb] ?? 1)
+  })
 
   return (
     <div className={`border-b border-ibm-gray20 dark:border-ibm-gray80 transition-all ${!enabled ? 'opacity-55' : ''}`}>
@@ -212,14 +278,17 @@ function DomainRow({ domain, enabled, onToggle, answers, onChange }) {
 
       {/* Questions body */}
       {enabled && (
-        <div className="px-4 pb-5 pt-1 border-t border-ibm-gray20 dark:border-ibm-gray80 bg-ibm-gray10/40 dark:bg-ibm-gray100/40 space-y-4">
-          {sections.map(section => (
+        <div className="px-4 pb-5 pt-1 border-t border-ibm-gray20 dark:border-ibm-gray80 bg-ibm-gray10/40 dark:bg-ibm-gray100/40 space-y-3">
+          {sortedSections.map(section => (
             <SectionBlock
               key={section}
+              domainId={domain.id}
               label={section}
               questions={questions.filter(q => q.section === section)}
               answers={domAnswers}
               onChange={onChange}
+              pref={getSection(domain.id, section)}
+              onPrefChange={val => setSection(domain.id, section, val)}
             />
           ))}
 
@@ -266,6 +335,8 @@ function ReadinessLegend() {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 export default function DomainsSection({ domains, setDomains, answers, onChange }) {
+  const { getSection, setSection } = usePrefs()
+
   const toggleDomain = id =>
     setDomains(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
 
@@ -279,6 +350,8 @@ export default function DomainsSection({ domains, setDomains, answers, onChange 
           onToggle={() => toggleDomain(domain.id)}
           answers={answers[domain.id]}
           onChange={val => onChange({ ...answers, [domain.id]: val })}
+          getSection={getSection}
+          setSection={setSection}
         />
       ))}
       <ReadinessLegend />

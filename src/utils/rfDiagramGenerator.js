@@ -1,16 +1,16 @@
 // Generates ReactFlow nodes + edges from assessment data
 
 const NODE_TYPES = {
-  internet:      { icon: '🌍', label: 'Internet',        brand: '',                    color: '#6f6f6f' },
-  firewall:      { icon: '🔒', label: 'Firewall',        brand: 'Check Point',         color: '#E50000' },
-  switch:        { icon: '🌐', label: 'Switching',       brand: 'Aruba',               color: '#FF8300' },
-  ap:            { icon: '📶', label: 'WiFi / APs',      brand: 'Aruba',               color: '#FF8300' },
-  servidor:      { icon: '🖥️', label: 'Servidores',      brand: 'IBM Power / Lenovo',  color: '#0052CC' },
-  storage:       { icon: '💾', label: 'Storage',         brand: 'IBM Storage / Synology', color: '#6366F1' },
-  backup:        { icon: '☁️', label: 'Backup',          brand: 'Veeam',               color: '#00B140' },
-  vm:            { icon: '⚡', label: 'Virtualización',  brand: 'VMware',              color: '#607078' },
-  usuarios:      { icon: '👥', label: 'Usuarios',        brand: '',                    color: '#8d8d8d' },
-  custom:        { icon: '📦', label: 'Equipo',          brand: '',                    color: '#525252' },
+  internet:  { icon: '🌍', label: 'Internet',       brand: '',                       color: '#6f6f6f', domainLabel: '' },
+  firewall:  { icon: '🔒', label: 'Firewall',       brand: 'Check Point',            color: '#E50000', domainLabel: 'Seguridad' },
+  switch:    { icon: '🌐', label: 'Switching',      brand: 'Aruba',                  color: '#FF8300', domainLabel: 'Redes' },
+  ap:        { icon: '📶', label: 'WiFi / APs',     brand: 'Aruba',                  color: '#FF8300', domainLabel: 'Redes' },
+  servidor:  { icon: '🖥️', label: 'Servidores',     brand: 'IBM Power / Lenovo',     color: '#0052CC', domainLabel: 'Servidores' },
+  storage:   { icon: '💾', label: 'Storage',        brand: 'IBM Storage / Synology', color: '#6366F1', domainLabel: 'Almacenamiento' },
+  backup:    { icon: '☁️', label: 'Backup',         brand: 'Veeam',                  color: '#00B140', domainLabel: 'Backup' },
+  vm:        { icon: '⚡', label: 'Virtualización', brand: 'VMware',                 color: '#607078', domainLabel: 'Virtualización' },
+  usuarios:  { icon: '👥', label: 'Usuarios',       brand: '',                       color: '#8d8d8d', domainLabel: '' },
+  custom:    { icon: '📦', label: 'Equipo',         brand: '',                       color: '#525252', domainLabel: '' },
 }
 
 export { NODE_TYPES }
@@ -27,7 +27,9 @@ function node(id, type, position, overrides = {}) {
       label: overrides.label || base.label,
       brand: overrides.brand || base.brand,
       color: base.color,
+      domainLabel: base.domainLabel || '',
       note: '',
+      status: 'existing',   // auto-generated = client's current infra
       ...overrides,
     },
   }
