@@ -130,6 +130,89 @@ const CONN_RULES = {
   'usuarios→firewall':  { blocked: true, reason: 'Los usuarios no se conectan directamente al firewall.' },
   'usuarios→vm':        { blocked: true, reason: 'Los usuarios acceden a servicios en VMs a través de la red, no directamente al host.' },
   'usuarios→servidor':  { options: ['Acceso a aplicación / servicio'], warn: 'En arquitectura, este flujo suele representarse al revés (servidor provee servicio a usuarios). Verifica la dirección.' },
+  'usuarios→power':     { blocked: true, reason: 'Los usuarios no se conectan directamente a servidores IBM Power.' },
+  'usuarios→tape':      { blocked: true, reason: 'Los usuarios no acceden directamente a la library de cintas.' },
+  'usuarios→cloud':     { options: ['VPN corporativa hacia nube', 'Escritorio virtual (VDI en nube)'], warn: 'Los usuarios acceden a la nube a través del firewall y VPN. Esta conexión representa el flujo lógico de acceso, no físico.' },
+  'usuarios→usuarios':  { blocked: true, reason: 'Los endpoints de usuario no se conectan entre sí en topología de red empresarial.' },
+
+  // ── IBM POWER (AIX / IBM i) ───────────────────────────────────────────────
+  'power→switch':       { options: ['1G copper', '10G SFP+', 'Bonding / LAG (LACP)'] },
+  'power→storage':      { options: ['SAS directo (DAS)', 'Fibre Channel (FC — HBA requerido)', 'iSCSI', 'NFS', 'IBM i native attach'] },
+  'power→servidor':     { options: ['Migración P2P', 'Integración de aplicación distribuida'] },
+  'power→vm':           { options: ['PowerVM (LPAR en host Power)', 'Migración a vSphere (P2V)'], warn: 'Si el Power ejecuta PowerVM, el host ES la capa de virtualización. Esta conexión representa migración o integración, no dependencia física.' },
+  'power→backup':       { options: ['IBM Spectrum Protect (TSM)', 'Veeam Agent para IBM Power', 'BRMS (IBM i)'] },
+  'power→power':        { options: ['PowerHA (HACMP cluster)', 'Replicación LUN (Global Mirror / Metro Mirror)', 'GLVM', 'Heartbeat / Resource Group'] },
+  'power→cloud':        { options: ['IBM Power Virtual Server (cloud híbrido)', 'Replicación a sitio remoto', 'Burst de carga a nube'] },
+  'power→tape':         { options: ['SAS directo (library local)', 'Fibre Channel (SAN tape library)', 'BRMS backup a cinta'] },
+  'power→firewall':     { options: ['Segmento DMZ', 'Segmento interno protegido'] },
+  'power→internet':     { blocked: true, reason: 'Los servidores IBM Power no deben conectarse directamente a internet.' },
+  'power→ap':           { blocked: true, reason: 'Los servidores IBM Power no se conectan a APs WiFi.' },
+  'power→usuarios':     { blocked: true, reason: 'Topológicamente los usuarios acceden a los servidores IBM Power, no al revés.' },
+
+  // ── TAPE LIBRARY (IBM TS Series) ─────────────────────────────────────────
+  'tape→backup':        { options: ['Repositorio de cinta (Veeam Tape Server)', 'Fuente de restauración', 'IBM Spectrum Protect Tape Pool'] },
+  'tape→storage':       { options: ['HSM — tiering automático a cinta', 'Archivo frío (cold archive)'] },
+  'tape→power':         { options: ['Cinta SAS directa (library local al Power)', 'FC (SAN tape library)'] },
+  'tape→servidor':      { options: ['Cinta SAS directa', 'FC (SAN tape library)'] },
+  'tape→switch':        { options: ['Management (controladora de library vía IP)'] },
+  'tape→tape':          { options: ['Expansión de library (módulos adicionales)', 'Multi-frame library (IBM TS4500)'] },
+  'tape→internet':      { blocked: true, reason: 'La library de cintas no tiene conexión a internet.' },
+  'tape→usuarios':      { blocked: true, reason: 'Los usuarios no acceden directamente a la library de cintas.' },
+  'tape→firewall':      { blocked: true, reason: 'La library de cintas no se conecta directamente al firewall.' },
+  'tape→ap':            { blocked: true, reason: 'La library de cintas no se conecta a APs WiFi.' },
+  'tape→vm':            { blocked: true, reason: 'Los hosts VMware no se conectan directamente a la library de cintas. El servidor de backup (Veeam) es el intermediario.' },
+  'tape→cloud':         { blocked: true, reason: 'La library de cintas física no tiene conexión directa a la nube. El servidor de backup es el intermediario.' },
+
+  // ── NUBE PROPIA (CoreSolutions Cloud) ────────────────────────────────────
+  'cloud→internet':     { options: ['Uplink ISP (nube propia)', 'Peering directo (BGP)'] },
+  'cloud→firewall':     { options: ['VPN site-to-site (IPsec)', 'SD-WAN overlay', 'MPLS / línea dedicada'] },
+  'cloud→servidor':     { options: ['Replicación desde nube a on-prem', 'Burst inverso', 'Nube híbrida (sincronización)'] },
+  'cloud→storage':      { options: ['Tiering desde nube a on-prem', 'Object Storage (S3-compatible)', 'Replicación asíncrona'] },
+  'cloud→backup':       { options: ['Repositorio Veeam Cloud Connect', 'Cloud Tier (SOBR — Scale-out)', 'DR como servicio (DRaaS)'] },
+  'cloud→vm':           { options: ['IaaS VMs en nube', 'Replicación hacia sitio local (DR inverso)', 'vMotion cross-cloud (HCX)'] },
+  'cloud→power':        { options: ['IBM Power Virtual Server (IaaS cloud)', 'Burst de carga IBM Power a nube'] },
+  'cloud→cloud':        { options: ['Multi-cloud / nube híbrida', 'Replicación entre regiones (DR)', 'Peering entre sites'] },
+  'cloud→switch':       { blocked: true, reason: 'La nube no se conecta directamente a un switch on-premise. La conectividad pasa por firewall / VPN.' },
+  'cloud→tape':         { blocked: true, reason: 'La nube no se conecta directamente a una library de cintas física.' },
+  'cloud→usuarios':     { blocked: true, reason: 'Los usuarios acceden a la nube a través de internet y firewall, no hay conexión directa.' },
+  'cloud→ap':           { blocked: true, reason: 'La nube no se conecta directamente a APs WiFi.' },
+
+  // ── Tipos existentes → nuevos tipos ──────────────────────────────────────
+  'internet→power':     { blocked: true, reason: 'Los servidores IBM Power no deben exponerse directamente a internet.' },
+  'internet→tape':      { blocked: true, reason: 'La library de cintas no tiene conexión a internet.' },
+  'internet→cloud':     { options: ['WAN / ISP hacia nube propia', 'Peering público (BGP)'], warn: 'Representa la conexión del ISP hacia la nube propia. El acceso de usuarios a la nube debe pasar por el firewall.' },
+
+  'firewall→power':     { options: ['Segmento interno protegido', 'DMZ directa'] },
+  'firewall→tape':      { blocked: true, reason: 'La library de cintas no se conecta directamente al firewall.' },
+  'firewall→cloud':     { options: ['VPN site-to-site (IPsec)', 'SD-WAN overlay', 'MPLS / línea dedicada'] },
+
+  'switch→power':       { options: ['1G copper', '10G SFP+', 'Bonding / LAG (LACP)'] },
+  'switch→tape':        { options: ['Management (controladora de library vía IP)'], warn: 'El switch conecta solo a la interfaz de management de la library. Los datos van por SAS o FC directo al servidor.' },
+  'switch→cloud':       { blocked: true, reason: 'Un switch LAN no se conecta directamente a la nube. La conectividad pasa por el firewall / VPN.' },
+
+  'servidor→power':     { options: ['Integración de aplicación distribuida', 'Migración física (P2P)'] },
+  'servidor→tape':      { options: ['SAS directo (DAS tape)', 'Fibre Channel (SAN tape library)'] },
+  'servidor→cloud':     { options: ['Replicación a nube (DR)', 'Burst de carga a nube', 'Migración (lift and shift)'] },
+
+  'storage→power':      { options: ['iSCSI target presentado al Power', 'NFS export', 'Fibre Channel (storage presenta LUN a Power)'] },
+  'storage→tape':       { options: ['Tiering automático (HSM — IBM Spectrum Scale)', 'Archivo frío (cold data)', 'Snapshot offload a cinta'] },
+  'storage→cloud':      { options: ['Tiering a object storage (IBM COS / S3)', 'Replicación asíncrona remota', 'Snapshot remoto'] },
+
+  'backup→power':       { options: ['IBM Spectrum Protect (agent)', 'BRMS (IBM i)', 'Veeam Agent para IBM Power'] },
+  'backup→tape':        { options: ['Veeam Tape Server (offload a cinta)', 'Offload mensual / anual a cinta', 'DR copy a cinta offsite'] },
+  'backup→cloud':       { options: ['Veeam Cloud Connect (repository en nube)', 'Cloud Tier SOBR', 'DRaaS (Disaster Recovery as a Service)'] },
+
+  'vm→power':           { options: ['Migración P2V inversa', 'Integración de carga cross-platform'], warn: 'Conexión inusual. Verifica si es una migración o integración real entre plataformas.' },
+  'vm→tape':            { blocked: true, reason: 'Los hosts VMware no se conectan directamente a la library de cintas. El servidor de backup (Veeam) es el intermediario.' },
+  'vm→cloud':           { options: ['Replicación a DR en nube (Veeam Cloud Connect)', 'Burst de VMs', 'Migración a IaaS'] },
+
+  'ap→power':           { blocked: true, reason: 'Los APs no se conectan directamente a servidores IBM Power.' },
+  'ap→tape':            { blocked: true, reason: 'Los APs no se conectan a libraries de cintas.' },
+  'ap→cloud':           { blocked: true, reason: 'Los APs no se conectan directamente a la nube.' },
+
+  // ── Reglas same-type faltantes ────────────────────────────────────────────
+  'ap→ap':              { options: ['Mesh (wireless backhaul)', 'Uplink PoE daisy chain'], warn: 'El daisy chain PoE degrada el rendimiento. Usa mesh o sube cada AP directamente al switch.' },
+  'internet→internet':  { blocked: true, reason: 'No aplica — representa dos ISP que no se interconectan en el diagrama.' },
 }
 
 function getRule(srcType, tgtType) {
@@ -222,11 +305,13 @@ const EDGE_TYPE_MAP = { labeled: LabeledEdge }
 
 // ─── Add node picker ──────────────────────────────────────────────────────────
 const ADDABLE_NODES = [
-  { type: 'internet', label: 'Internet / ISP' }, { type: 'firewall', label: 'Firewall' },
-  { type: 'switch',   label: 'Switch' },          { type: 'ap',       label: 'Access Point / WiFi' },
-  { type: 'servidor', label: 'Servidor' },         { type: 'storage',  label: 'Storage' },
-  { type: 'backup',   label: 'Backup' },           { type: 'vm',       label: 'Host VM' },
-  { type: 'usuarios', label: 'Usuarios' },         { type: 'custom',   label: 'Equipo genérico' },
+  { type: 'internet', label: 'Internet / ISP' },   { type: 'firewall', label: 'Firewall' },
+  { type: 'switch',   label: 'Switch' },            { type: 'ap',       label: 'Access Point / WiFi' },
+  { type: 'servidor', label: 'Servidor x86 (Lenovo)' }, { type: 'power', label: 'IBM Power (AIX / IBM i)' },
+  { type: 'storage',  label: 'Storage (IBM / Synology)' }, { type: 'tape', label: 'Tape Library (IBM TS)' },
+  { type: 'backup',   label: 'Backup (Veeam)' },   { type: 'vm',       label: 'Host VMware' },
+  { type: 'cloud',    label: 'Nube Propia (CoreSolutions)' }, { type: 'usuarios', label: 'Usuarios' },
+  { type: 'custom',   label: 'Equipo genérico' },
 ]
 
 function AddNodePicker({ onAdd, onClose }) {
