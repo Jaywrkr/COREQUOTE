@@ -9,121 +9,136 @@ import ReactFlow, {
   Handle,
   Position,
   Panel,
+  EdgeLabelRenderer,
+  BaseEdge,
+  getStraightPath,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { generateRFDiagram, NODE_TYPES } from '../../utils/rfDiagramGenerator'
 
-// ─── Status config ────────────────────────────────────────────────────────────
-const STATUS = {
-  existing: {
-    label: 'LEGACY',
-    bg: 'rgba(22,22,22,0.95)',
-    borderStyle: 'dashed',
-    badgeColor: '#8d8d8d',
-    badgeBg: 'rgba(141,141,141,0.12)',
-    dimText: true,
-  },
-  new: {
-    label: 'NUEVO',
-    bg: 'rgba(15,98,254,0.08)',
-    borderStyle: 'solid',
-    badgeColor: '#0f62fe',
-    badgeBg: 'rgba(15,98,254,0.15)',
-    dimText: false,
-  },
+// ─── Connection rules ─────────────────────────────────────────────────────────
+const CONN_RULES = {
+  'internet→firewall':  { options: ['WAN principal', 'WAN secundario (failover)', 'Internet dedicado'] },
+  'internet→switch':    { options: ['Conexión directa (sin FW)'], warn: 'Sin firewall perimetral — riesgo de seguridad alto' },
+  'internet→router':    { options: ['WAN'] },
+  'internet→servidor':  { options: ['Acceso directo'], warn: 'Servidor expuesto sin firewall — vulnerabilidad crítica' },
+  'firewall→switch':    { options: ['LAN', 'DMZ', 'VLAN trunk', 'Management'] },
+  'firewall→servidor':  { options: ['DMZ', 'Segmento protegido'] },
+  'firewall→backup':    { options: ['LAN backup'] },
+  'firewall→firewall':  { options: ['HA (Alta disponibilidad)', 'Cluster activo/pasivo'] },
+  'switch→switch':      { options: ['Uplink 1G', 'Uplink 10G', 'Stack', 'Fibra óptica'] },
+  'switch→ap':          { options: ['PoE (802.3af)', 'PoE+ (802.3at)', 'Uplink fibra'] },
+  'switch→servidor':    { options: ['1G copper', '10G SFP+', 'Bonding / LAG'] },
+  'switch→storage':     { options: ['iSCSI 1G', 'iSCSI 10G', 'NFS', 'SMB/CIFS'] },
+  'switch→vm':          { options: ['1G', '10G SFP+', 'Bonding / LAG'] },
+  'switch→backup':      { options: ['LAN backup', '10G dedicado'] },
+  'switch→usuarios':    { options: ['Access port', 'VLAN usuario'] },
+  'switch→custom':      { options: ['1G', '10G', 'Fibra'] },
+  'servidor→storage':   { options: ['iSCSI', 'Fibre Channel (FC)', 'NFS', 'SMB/CIFS', 'SAS directo (DAS)'] },
+  'servidor→servidor':  { options: ['Cluster / heartbeat', 'Replicación', 'HA link'] },
+  'servidor→vm':        { options: ['Hipervisor local'] },
+  'servidor→backup':    { options: ['Agent Veeam', 'Agentless'] },
+  'vm→storage':         { options: ['VMFS / vSAN', 'NFS datastore', 'iSCSI datastore'] },
+  'vm→vm':              { options: ['vMotion', 'Replicación', 'Cluster HA'] },
+  'vm→backup':          { options: ['Snapshot VMware', 'Agentless Veeam', 'CDP (continuo)'] },
+  'backup→storage':     { options: ['Repository local', 'Scale-out Backup Repo', 'Object storage (S3)'] },
+  'backup→backup':      { options: ['Replica job', 'Copy job offsite'] },
+  'ap→usuarios':        { options: ['WiFi 2.4 GHz (802.11n)', 'WiFi 5 GHz (802.11ac)', 'WiFi 6 (802.11ax)', 'WiFi 6E'] },
+  // Blocked — arquitectónicamente incorrectos
+  'internet→storage':   { blocked: true, reason: 'El storage no debe estar expuesto directamente a internet.' },
+  'internet→usuarios':  { blocked: true, reason: 'Los usuarios se conectan a través de la red interna, no directo a internet.' },
+  'storage→internet':   { blocked: true, reason: 'El storage no debe tener salida directa a internet.' },
+  'usuarios→storage':   { blocked: true, reason: 'Los usuarios acceden al storage a través de servidores o NAS, no directamente.' },
 }
 
-// ─── Custom IBM-styled node ───────────────────────────────────────────────────
+function getRule(srcType, tgtType) {
+  if (!srcType || !tgtType) return null
+  return CONN_RULES[`${srcType}→${tgtType}`] || null
+}
+
+// ─── Status config ────────────────────────────────────────────────────────────
+const STATUS = {
+  existing: { label: 'LEGACY', bg: 'rgba(22,22,22,0.95)', borderStyle: 'dashed', badgeColor: '#8d8d8d', badgeBg: 'rgba(141,141,141,0.12)', dimText: true },
+  new:      { label: 'NUEVO',  bg: 'rgba(15,98,254,0.08)', borderStyle: 'solid',  badgeColor: '#0f62fe', badgeBg: 'rgba(15,98,254,0.15)', dimText: false },
+}
+
+// ─── Custom node ──────────────────────────────────────────────────────────────
 function IBMNode({ data, selected }) {
   const st = STATUS[data.status] || STATUS.existing
-
   return (
     <div
       style={{
-        borderLeftColor: data.color,
-        borderLeftWidth: 4,
-        borderLeftStyle: 'solid',
-        borderTopColor:    selected ? '#0f62fe' : '#525252',
-        borderRightColor:  selected ? '#0f62fe' : '#525252',
-        borderBottomColor: selected ? '#0f62fe' : '#525252',
-        borderTopStyle:    st.borderStyle,
-        borderRightStyle:  st.borderStyle,
-        borderBottomStyle: st.borderStyle,
-        borderTopWidth: 1,
-        borderRightWidth: 1,
-        borderBottomWidth: 1,
-        background: st.bg,
-        boxShadow: selected ? '0 0 0 2px rgba(15,98,254,0.35)' : undefined,
-        minWidth: 140,
+        borderLeftColor: data.color, borderLeftWidth: 4, borderLeftStyle: 'solid',
+        borderTopColor: selected ? '#0f62fe' : '#525252', borderTopStyle: st.borderStyle, borderTopWidth: 1,
+        borderRightColor: selected ? '#0f62fe' : '#525252', borderRightStyle: st.borderStyle, borderRightWidth: 1,
+        borderBottomColor: selected ? '#0f62fe' : '#525252', borderBottomStyle: st.borderStyle, borderBottomWidth: 1,
+        background: st.bg, boxShadow: selected ? '0 0 0 2px rgba(15,98,254,0.35)' : undefined, minWidth: 140,
       }}
       className="transition-all cursor-pointer select-none"
     >
-      <Handle type="target" position={Position.Top} style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
-
+      <Handle type="target" position={Position.Top}    style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
+      <Handle type="target" position={Position.Left}   style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
       <div className="px-3 py-2">
-        {/* Status badge */}
         <div className="flex items-center justify-between mb-1.5">
-          <span
-            className="text-[9px] font-bold tracking-widest px-1.5 py-0.5 font-mono"
-            style={{ color: st.badgeColor, backgroundColor: st.badgeBg }}
-          >
+          <span className="text-[9px] font-bold tracking-widest px-1.5 py-0.5 font-mono"
+            style={{ color: st.badgeColor, backgroundColor: st.badgeBg }}>
             {st.label}
           </span>
-          <div className="flex items-center gap-1">
-            {data.note && (
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: '#f1c21b' }}
-                title="Tiene nota"
-              />
-            )}
-          </div>
+          {data.note && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f1c21b' }} title="Tiene nota" />}
         </div>
-
-        {/* Icon + label */}
         <div className="flex items-start gap-2">
           <span className="text-base leading-none mt-0.5 flex-shrink-0">{data.icon}</span>
           <div className="min-w-0 flex-1">
-            <p
-              className="text-xs font-semibold leading-tight break-words"
-              style={{ color: st.dimText ? '#a8a8a8' : '#f4f4f4' }}
-            >
+            <p className="text-xs font-semibold leading-tight break-words" style={{ color: st.dimText ? '#a8a8a8' : '#f4f4f4' }}>
               {data.label}
             </p>
-            {data.brand && (
-              <p className="text-[10px] text-ibm-gray50 font-mono mt-0.5 leading-tight">{data.brand}</p>
-            )}
+            {data.brand && <p className="text-[10px] text-ibm-gray50 font-mono mt-0.5 leading-tight">{data.brand}</p>}
           </div>
         </div>
-
-        {/* Domain color bar label */}
-        <div
-          className="text-[9px] font-mono mt-1.5 leading-none"
-          style={{ color: data.color, opacity: 0.8 }}
-        >
+        <div className="text-[9px] font-mono mt-1.5 leading-none" style={{ color: data.color, opacity: 0.8 }}>
           {data.domainLabel || ''}
         </div>
       </div>
-
       <Handle type="source" position={Position.Bottom} style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
+      <Handle type="source" position={Position.Right}  style={{ background: '#525252', border: 'none', width: 8, height: 8 }} />
     </div>
   )
 }
 
 const NODE_TYPE_MAP = { ibmNode: IBMNode }
 
+// ─── Custom edge with label ───────────────────────────────────────────────────
+function LabeledEdge({ id, sourceX, sourceY, targetX, targetY, data, markerEnd, style }) {
+  const [edgePath, labelX, labelY] = getStraightPath({ sourceX, sourceY, targetX, targetY })
+  if (!data?.label) {
+    return <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+  }
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      <EdgeLabelRenderer>
+        <div
+          style={{ position: 'absolute', transform: `translate(-50%,-50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'all' }}
+          className="nodrag nopan"
+        >
+          <span className="text-[9px] font-mono px-1.5 py-0.5 bg-ibm-gray90 border border-ibm-gray70 text-ibm-gray30 whitespace-nowrap">
+            {data.label}
+          </span>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  )
+}
+
+const EDGE_TYPE_MAP = { labeled: LabeledEdge }
+
 // ─── Add node picker ──────────────────────────────────────────────────────────
 const ADDABLE_NODES = [
-  { type: 'internet',  label: 'Internet / ISP' },
-  { type: 'firewall',  label: 'Firewall' },
-  { type: 'switch',    label: 'Switch' },
-  { type: 'ap',        label: 'Access Point / WiFi' },
-  { type: 'servidor',  label: 'Servidor' },
-  { type: 'storage',   label: 'Storage' },
-  { type: 'backup',    label: 'Backup' },
-  { type: 'vm',        label: 'Host VM' },
-  { type: 'usuarios',  label: 'Usuarios' },
-  { type: 'custom',    label: 'Equipo genérico' },
+  { type: 'internet', label: 'Internet / ISP' }, { type: 'firewall', label: 'Firewall' },
+  { type: 'switch',   label: 'Switch' },          { type: 'ap',       label: 'Access Point / WiFi' },
+  { type: 'servidor', label: 'Servidor' },         { type: 'storage',  label: 'Storage' },
+  { type: 'backup',   label: 'Backup' },           { type: 'vm',       label: 'Host VM' },
+  { type: 'usuarios', label: 'Usuarios' },         { type: 'custom',   label: 'Equipo genérico' },
 ]
 
 function AddNodePicker({ onAdd, onClose }) {
@@ -137,16 +152,88 @@ function AddNodePicker({ onAdd, onClose }) {
         {ADDABLE_NODES.map(n => {
           const base = NODE_TYPES[n.type]
           return (
-            <button
-              key={n.type}
-              onClick={() => { onAdd(n.type); onClose() }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-ibm-gray80 transition-colors"
-            >
+            <button key={n.type} onClick={() => { onAdd(n.type); onClose() }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-ibm-gray80 transition-colors">
               <span className="text-sm">{base?.icon}</span>
               <span className="text-xs text-ibm-gray10">{n.label}</span>
             </button>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Connection picker modal ──────────────────────────────────────────────────
+function ConnectionPicker({ pending, onConfirm, onCancel }) {
+  const { src, tgt, rule } = pending
+  const [selected, setSelected] = useState(rule?.options?.[0] || '')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onCancel}>
+      <div
+        className="bg-ibm-gray90 border border-ibm-gray70 shadow-2xl w-80 max-w-[90vw]"
+        onClick={e => e.stopPropagation()}
+        style={{ animation: 'sheetIn 0.15s ease-out' }}
+      >
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-ibm-gray70">
+          <p className="text-xs font-semibold text-ibm-gray30 uppercase tracking-widest mb-2">Tipo de conexión</p>
+          <div className="flex items-center gap-2">
+            <span className="text-base">{src.data.icon}</span>
+            <span className="text-xs font-medium text-ibm-gray10 truncate max-w-[80px]">{src.data.label}</span>
+            <svg className="w-4 h-4 text-ibm-gray50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+            <span className="text-base">{tgt.data.icon}</span>
+            <span className="text-xs font-medium text-ibm-gray10 truncate max-w-[80px]">{tgt.data.label}</span>
+          </div>
+        </div>
+
+        {/* Warning */}
+        {rule?.warn && (
+          <div className="mx-4 mt-3 px-3 py-2 bg-ibm-yellow/10 border border-ibm-yellow/40 flex gap-2">
+            <span className="text-ibm-yellow text-xs flex-shrink-0 mt-0.5">⚠</span>
+            <p className="text-xs text-ibm-yellow leading-snug">{rule.warn}</p>
+          </div>
+        )}
+
+        {/* Options */}
+        <div className="p-4 space-y-1.5">
+          {(rule?.options || ['Conexión genérica']).map(opt => (
+            <button
+              key={opt}
+              onClick={() => setSelected(opt)}
+              className={`w-full text-left px-3 py-2.5 text-xs border transition-colors flex items-center gap-2
+                ${selected === opt
+                  ? 'bg-ibm-blue/10 border-ibm-blue text-ibm-gray10'
+                  : 'border-ibm-gray70 text-ibm-gray30 hover:border-ibm-gray50 hover:text-ibm-gray10'
+                }`}
+            >
+              <span className={`w-3 h-3 rounded-full border-2 flex-shrink-0 transition-colors
+                ${selected === opt ? 'border-ibm-blue bg-ibm-blue' : 'border-ibm-gray60'}`}
+              />
+              <span className="font-mono">{opt}</span>
+            </button>
+          ))}
+
+          {/* Generic fallback when no rule */}
+          {!rule && (
+            <p className="text-[10px] text-ibm-gray50 px-1">
+              Conexión no estándar — se añadirá como genérica.
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 px-4 pb-4">
+          <button onClick={onCancel} className="btn-ghost flex-shrink-0 text-xs py-2 px-4">
+            Cancelar
+          </button>
+          <button onClick={() => onConfirm(selected)} className="btn-primary flex-1 text-xs py-2">
+            Conectar
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -158,50 +245,31 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
   const [note,   setNote]   = useState(node.data.note || '')
   const [status, setStatus] = useState(node.data.status || 'existing')
 
-  const save = () => {
-    onUpdate(node.id, { label, note, status })
-    onClose()
-  }
+  const save = () => { onUpdate(node.id, { label, note, status }); onClose() }
 
   return (
-    <div
-      className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl"
-      style={{ width: 280 }}
-    >
-      {/* Header */}
+    <div className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl" style={{ width: 280 }}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-ibm-gray70 flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-lg">{node.data.icon}</span>
           <span className="text-xs font-semibold text-ibm-gray10 truncate max-w-[160px]">{node.data.label}</span>
         </div>
-        <button onClick={onClose} className="text-ibm-gray50 hover:text-ibm-gray10 transition-colors p-1">
+        <button onClick={onClose} className="text-ibm-gray50 hover:text-ibm-gray10 p-1">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      {/* Fields */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
-        {/* Status toggle — most prominent */}
         <div>
           <label className="field-label mb-2">Estado del equipo</label>
           <div className="flex">
-            {[
-              { value: 'existing', label: '📦 Legacy', desc: 'Ya existe en el cliente' },
-              { value: 'new',      label: '✨ Nuevo',  desc: 'Propuesta CoreSolutions' },
-            ].map((s, i) => (
-              <button
-                key={s.value}
-                onClick={() => setStatus(s.value)}
-                title={s.desc}
-                className={`flex-1 py-2 text-xs font-semibold transition-colors border
-                  ${i === 0 ? 'border-r-0' : ''}
+            {[{ value: 'existing', label: '📦 Legacy' }, { value: 'new', label: '✨ Nuevo' }].map((s, i) => (
+              <button key={s.value} onClick={() => setStatus(s.value)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors border ${i === 0 ? 'border-r-0' : ''}
                   ${status === s.value
-                    ? s.value === 'new'
-                      ? 'bg-ibm-blue text-white border-ibm-blue'
-                      : 'bg-ibm-gray70 text-ibm-gray10 border-ibm-gray70'
+                    ? s.value === 'new' ? 'bg-ibm-blue text-white border-ibm-blue' : 'bg-ibm-gray70 text-ibm-gray10 border-ibm-gray70'
                     : 'border-ibm-gray60 text-ibm-gray50 hover:border-ibm-gray50'
                   }`}
               >
@@ -209,38 +277,20 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-ibm-gray50 mt-1">
-            {status === 'existing' ? 'Infraestructura actual del cliente' : 'Equipo / solución que se va a proponer'}
-          </p>
         </div>
-
         <div>
           <label className="field-label">Nombre del nodo</label>
-          <input
-            className="field text-sm"
-            value={label}
-            onChange={e => setLabel(e.target.value)}
-            placeholder="Ej: Firewall HQ"
-          />
+          <input className="field text-sm" value={label} onChange={e => setLabel(e.target.value)} />
         </div>
-
         <div>
           <label className="field-label flex items-center gap-1.5">
             <span className="text-ibm-yellow">📝</span> Nota técnica
           </label>
-          <textarea
-            className="field resize-none text-sm"
-            rows={5}
-            value={note}
+          <textarea className="field resize-none text-sm" rows={5} value={note}
             onChange={e => setNote(e.target.value)}
-            placeholder="Ej: Switch HP sin garantía, instalado en 2016. No administrado. Prioridad de reemplazo alta..."
-            autoFocus
-          />
-          <p className="text-xs text-ibm-gray50 mt-1">
-            Visible en el reporte interno del assessment.
-          </p>
+            placeholder="Ej: Switch sin garantía, instalado 2016. No administrado. Reemplazo urgente..."
+            autoFocus />
         </div>
-
         {node.data.brand && (
           <div>
             <label className="field-label">Marca / solución</label>
@@ -249,16 +299,10 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex gap-2 p-4 border-t border-ibm-gray70 flex-shrink-0">
-        <button onClick={save} className="btn-primary flex-1 text-xs py-2">
-          Guardar
-        </button>
-        <button
-          onClick={() => { onDelete(node.id); onClose() }}
-          className="px-3 py-2 text-xs border border-ibm-red/50 text-ibm-red hover:bg-ibm-red/10 transition-colors"
-          title="Eliminar nodo"
-        >
+        <button onClick={save} className="btn-primary flex-1 text-xs py-2">Guardar</button>
+        <button onClick={() => { onDelete(node.id); onClose() }}
+          className="px-3 py-2 text-xs border border-ibm-red/50 text-ibm-red hover:bg-ibm-red/10">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
@@ -271,21 +315,23 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
 // ─── Legend ───────────────────────────────────────────────────────────────────
 function DiagramLegend() {
   return (
-    <div className="flex items-center gap-3 px-3 py-1.5 bg-ibm-gray90 border border-ibm-gray70 text-[10px]">
+    <div className="flex items-center gap-3 px-3 py-1.5 bg-ibm-gray90 border border-ibm-gray70 text-[10px] flex-wrap">
       <div className="flex items-center gap-1.5">
         <div className="w-6 h-3 border border-dashed border-ibm-gray50 bg-ibm-gray100" />
-        <span className="text-ibm-gray50 font-mono">LEGACY — equipo actual</span>
+        <span className="text-ibm-gray50 font-mono">LEGACY</span>
       </div>
       <div className="w-px h-3 bg-ibm-gray70" />
       <div className="flex items-center gap-1.5">
         <div className="w-6 h-3 border border-solid border-ibm-blue bg-ibm-blue/10" />
-        <span className="text-ibm-gray50 font-mono">NUEVO — propuesta</span>
+        <span className="text-ibm-gray50 font-mono">NUEVO</span>
       </div>
       <div className="w-px h-3 bg-ibm-gray70" />
       <div className="flex items-center gap-1.5">
         <div className="w-2 h-2 rounded-full bg-ibm-yellow" />
-        <span className="text-ibm-gray50 font-mono">tiene nota</span>
+        <span className="text-ibm-gray50 font-mono">nota</span>
       </div>
+      <div className="w-px h-3 bg-ibm-gray70" />
+      <span className="text-ibm-gray50 font-mono">Arrastra handles para conectar</span>
     </div>
   )
 }
@@ -297,22 +343,52 @@ export default function DiagramCanvas({ assessment }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initEdges)
   const [selectedNode, setSelectedNode] = useState(null)
   const [showPicker, setShowPicker]     = useState(false)
+  const [pendingConn, setPendingConn]   = useState(null)
   const idCounter = useRef(100)
 
-  const onConnect = useCallback(
-    params => setEdges(eds => addEdge({ ...params, style: { stroke: '#525252', strokeWidth: 1.5 } }, eds)),
-    [setEdges]
-  )
+  // ── Validate connection while dragging ──
+  const isValidConnection = useCallback((connection) => {
+    const src = nodes.find(n => n.id === connection.source)
+    const tgt = nodes.find(n => n.id === connection.target)
+    if (!src || !tgt || src.id === tgt.id) return false
+    const rule = getRule(src.data.nodeType, tgt.data.nodeType)
+    return !rule?.blocked
+  }, [nodes])
 
-  const onNodeClick = useCallback((_, node) => {
-    setSelectedNode(node)
-    setShowPicker(false)
-  }, [])
+  // ── Intercept connect — show picker or add directly ──
+  const onConnect = useCallback((params) => {
+    const src = nodes.find(n => n.id === params.source)
+    const tgt = nodes.find(n => n.id === params.target)
+    if (!src || !tgt) return
 
-  const onPaneClick = useCallback(() => {
-    setSelectedNode(null)
-    setShowPicker(false)
-  }, [])
+    const rule = getRule(src.data.nodeType, tgt.data.nodeType)
+    if (rule?.blocked) return
+
+    if (rule?.options && rule.options.length > 1) {
+      setPendingConn({ params, src, tgt, rule })
+    } else {
+      const label = rule?.options?.[0] || ''
+      addEdgeLabeled(params, label)
+    }
+  }, [nodes])
+
+  function addEdgeLabeled(params, label) {
+    setEdges(eds => addEdge({
+      ...params,
+      type: label ? 'labeled' : 'default',
+      data: { label },
+      style: { stroke: '#525252', strokeWidth: 1.5 },
+      markerEnd: { type: 'arrowclosed', color: '#525252' },
+    }, eds))
+  }
+
+  const confirmConn = (label) => {
+    if (pendingConn) addEdgeLabeled(pendingConn.params, label)
+    setPendingConn(null)
+  }
+
+  const onNodeClick = useCallback((_, node) => { setSelectedNode(node); setShowPicker(false) }, [])
+  const onPaneClick = useCallback(() => { setSelectedNode(null); setShowPicker(false) }, [])
 
   const updateNode = (id, changes) => {
     setNodes(ns => ns.map(n => n.id === id ? { ...n, data: { ...n.data, ...changes } } : n))
@@ -326,79 +402,65 @@ export default function DiagramCanvas({ assessment }) {
 
   const addNode = type => {
     const base = NODE_TYPES[type] || NODE_TYPES.custom
-    const id   = `custom-${idCounter.current++}`
-    const newNode = {
-      id,
-      type: 'ibmNode',
+    const id = `custom-${idCounter.current++}`
+    setNodes(ns => [...ns, {
+      id, type: 'ibmNode',
       position: { x: 80 + Math.random() * 200, y: 80 + Math.random() * 200 },
-      data: {
-        nodeType: type,
-        icon: base.icon,
-        label: base.label,
-        brand: base.brand,
-        color: base.color,
-        note: '',
-        status: 'new',       // manually added = proposed new equipment
-        domainLabel: base.domainLabel || '',
-      },
-    }
-    setNodes(ns => [...ns, newNode])
+      data: { nodeType: type, icon: base.icon, label: base.label, brand: base.brand,
+              color: base.color, domainLabel: base.domainLabel || '', note: '', status: 'new' },
+    }])
   }
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        nodes={nodes} edges={edges}
+        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
-        nodeTypes={NODE_TYPE_MAP}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
+        isValidConnection={isValidConnection}
+        onNodeClick={onNodeClick} onPaneClick={onPaneClick}
+        nodeTypes={NODE_TYPE_MAP} edgeTypes={EDGE_TYPE_MAP}
+        fitView fitViewOptions={{ padding: 0.3 }}
         deleteKeyCode="Delete"
         style={{ background: '#161616' }}
       >
         <Background color="#262626" variant={BackgroundVariant.Dots} gap={20} size={1} />
-        <Controls
-          style={{ background: '#262626', border: '1px solid #525252' }}
-          className="[&>button]:bg-ibm-gray90 [&>button]:border-ibm-gray70 [&>button]:text-ibm-gray10"
-        />
+        <Controls style={{ background: '#262626', border: '1px solid #525252' }}
+          className="[&>button]:bg-ibm-gray90 [&>button]:border-ibm-gray70 [&>button]:text-ibm-gray10" />
 
-        {/* Toolbar */}
         <Panel position="top-left">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2 relative">
               <button
                 onClick={() => { setShowPicker(p => !p); setSelectedNode(null) }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-colors
-                  ${showPicker
-                    ? 'bg-ibm-blue text-white border-ibm-blue'
-                    : 'bg-ibm-gray90 text-ibm-gray10 border-ibm-gray70 hover:border-ibm-gray50'
-                  }`}
+                  ${showPicker ? 'bg-ibm-blue text-white border-ibm-blue' : 'bg-ibm-gray90 text-ibm-gray10 border-ibm-gray70 hover:border-ibm-gray50'}`}
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 Agregar
               </button>
-
               <p className="text-[10px] text-ibm-gray50 hidden sm:block">
-                Arrastra · Conecta desde los puntos · Click para editar · Delete para eliminar
+                Click para editar · Delete para eliminar
               </p>
-
-              {showPicker && (
-                <AddNodePicker onAdd={addNode} onClose={() => setShowPicker(false)} />
-              )}
+              {showPicker && <AddNodePicker onAdd={addNode} onClose={() => setShowPicker(false)} />}
             </div>
             <DiagramLegend />
           </div>
         </Panel>
       </ReactFlow>
 
-      {/* Note panel overlay */}
+      {/* Connection type picker */}
+      {pendingConn && (
+        <ConnectionPicker
+          pending={pendingConn}
+          onConfirm={confirmConn}
+          onCancel={() => setPendingConn(null)}
+        />
+      )}
+
+      {/* Note panel */}
       {selectedNode && (
         <NotePanel
           node={selectedNode}
