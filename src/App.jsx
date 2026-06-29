@@ -72,8 +72,8 @@ function Sheet({ title, onClose, children }) {
       <div
         ref={ref}
         onClick={e => e.stopPropagation()}
-        className="surface w-full lg:max-w-3xl lg:rounded-none max-h-[92vh] lg:max-h-[88vh] flex flex-col overflow-hidden"
-        style={{ animation: 'sheetIn 0.22s cubic-bezier(0.16,1,0.3,1)' }}
+        className="surface w-full lg:max-w-3xl lg:rounded-none flex flex-col overflow-hidden"
+        style={{ animation: 'sheetIn 0.22s cubic-bezier(0.16,1,0.3,1)', height: '88vh' }}
       >
         {/* Sheet header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-ibm-gray20 dark:border-ibm-gray80 flex-shrink-0">
@@ -84,8 +84,8 @@ function Sheet({ title, onClose, children }) {
             </svg>
           </button>
         </div>
-        {/* Sheet body */}
-        <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
+        {/* Sheet body — explicit height so ReactFlow can measure */}
+        <div style={{ height: 'calc(88vh - 61px)' }} className="overflow-hidden">{children}</div>
       </div>
     </div>
   )

@@ -223,7 +223,7 @@ export default function DiagramCanvas({ assessment }) {
   }
 
   return (
-    <div className="relative w-full h-full">
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

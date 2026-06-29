@@ -7,15 +7,13 @@ export default function DiagramView({ assessment }) {
   if (assessment.domains.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-ibm-gray50">
-        <div className="text-center">
-          <p className="text-sm">Activa al menos un dominio para generar el diagrama.</p>
-        </div>
+        <p className="text-sm">Activa al menos un dominio para generar el diagrama.</p>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Domain pills */}
       <div className="flex flex-wrap gap-1.5 px-4 py-2 border-b border-ibm-gray80 flex-shrink-0">
         {activeDomains.map(d => (
@@ -29,8 +27,8 @@ export default function DiagramView({ assessment }) {
         ))}
       </div>
 
-      {/* Canvas fills remaining height */}
-      <div className="flex-1 min-h-0">
+      {/* Canvas — explicit style so ReactFlow sees a real height */}
+      <div style={{ flex: 1, minHeight: 0 }}>
         <DiagramCanvas assessment={assessment} />
       </div>
     </div>
