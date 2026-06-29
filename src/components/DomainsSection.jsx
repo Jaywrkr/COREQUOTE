@@ -1,7 +1,25 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { DOMAINS, DOMAIN_QUESTIONS } from '../data/domains'
 import { calcReadiness } from './steps/Questionnaire'
 import { usePrefs } from '../hooks/usePrefs'
+
+// ─── Domain order persistence ─────────────────────────────────────────────────
+const ORDER_KEY = 'cq-domain-order'
+
+function loadOrder() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ORDER_KEY) || 'null')
+    if (!saved) return DOMAINS.map(d => d.id)
+    // Merge: keep saved order, append any new domains not in saved list
+    const known = new Set(saved)
+    const extras = DOMAINS.map(d => d.id).filter(id => !known.has(id))
+    return [...saved.filter(id => DOMAINS.find(d => d.id === id)), ...extras]
+  } catch { return DOMAINS.map(d => d.id) }
+}
+
+function saveOrder(order) {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(order)) } catch {}
+}
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 function Toggle({ on, onToggle }) {
@@ -236,13 +254,12 @@ function SectionBlock({ domainId, label, questions, answers, onChange, pref, onP
 }
 
 // ─── Domain row ───────────────────────────────────────────────────────────────
-function DomainRow({ domain, enabled, onToggle, answers, onChange, getSection, setSection }) {
+function DomainRow({ domain, enabled, onToggle, answers, onChange, getSection, setSection, dragHandleProps, isDragging }) {
   const questions  = DOMAIN_QUESTIONS[domain.id] || []
   const domAnswers = answers || {}
   const filled     = Object.keys(domAnswers).filter(k => k !== '_restricciones').length
   const sections   = [...new Set(questions.map(q => q.section))]
 
-  // Sort: favorites first, then normal, hidden last
   const sortedSections = [...sections].sort((a, b) => {
     const pa = getSection(domain.id, a)
     const pb = getSection(domain.id, b)
@@ -251,10 +268,24 @@ function DomainRow({ domain, enabled, onToggle, answers, onChange, getSection, s
   })
 
   return (
-    <div className={`border-b border-ibm-gray20 dark:border-ibm-gray80 transition-all ${!enabled ? 'opacity-55' : ''}`}>
-
+    <div
+      className={`border-b border-ibm-gray20 dark:border-ibm-gray80 transition-all
+        ${!enabled ? 'opacity-55' : ''}
+        ${isDragging ? 'opacity-40 bg-ibm-blue/5' : ''}
+      `}
+    >
       {/* Row header */}
       <div className="flex items-center gap-3 px-4 py-3.5">
+        {/* Drag handle */}
+        <span
+          {...dragHandleProps}
+          className="flex-shrink-0 cursor-grab active:cursor-grabbing text-ibm-gray50 hover:text-ibm-gray30 transition-colors touch-none"
+          title="Arrastrar para reordenar"
+        >
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z"/>
+          </svg>
+        </span>
         <span className="text-lg flex-shrink-0 transition-colors" style={{ color: enabled ? domain.color : undefined }}>
           {domain.icon}
         </span>
@@ -336,23 +367,87 @@ function ReadinessLegend() {
 // ─── Export ───────────────────────────────────────────────────────────────────
 export default function DomainsSection({ domains, setDomains, answers, onChange }) {
   const { getSection, setSection } = usePrefs()
+  const [order, setOrder] = useState(loadOrder)
+  const [draggingId, setDraggingId]   = useState(null)
+  const [overId,     setOverId]       = useState(null)
+  const dragItem = useRef(null)
 
   const toggleDomain = id =>
     setDomains(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
 
+  const orderedDomains = order
+    .map(id => DOMAINS.find(d => d.id === id))
+    .filter(Boolean)
+
+  // ── HTML5 drag handlers ──
+  const handleDragStart = useCallback((id) => (e) => {
+    dragItem.current = id
+    setDraggingId(id)
+    e.dataTransfer.effectAllowed = 'move'
+    // Transparent drag image (we style the row itself)
+    const img = new Image()
+    e.dataTransfer.setDragImage(img, 0, 0)
+  }, [])
+
+  const handleDragOver = useCallback((id) => (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (id !== draggingId) setOverId(id)
+  }, [draggingId])
+
+  const handleDrop = useCallback((targetId) => (e) => {
+    e.preventDefault()
+    const from = dragItem.current
+    if (!from || from === targetId) return
+    setOrder(prev => {
+      const next = [...prev]
+      const fromIdx   = next.indexOf(from)
+      const targetIdx = next.indexOf(targetId)
+      next.splice(fromIdx, 1)
+      next.splice(targetIdx, 0, from)
+      saveOrder(next)
+      return next
+    })
+    setDraggingId(null)
+    setOverId(null)
+    dragItem.current = null
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null)
+    setOverId(null)
+    dragItem.current = null
+  }, [])
+
   return (
     <div>
-      {DOMAINS.map(domain => (
-        <DomainRow
+      {orderedDomains.map(domain => (
+        <div
           key={domain.id}
-          domain={domain}
-          enabled={domains.includes(domain.id)}
-          onToggle={() => toggleDomain(domain.id)}
-          answers={answers[domain.id]}
-          onChange={val => onChange({ ...answers, [domain.id]: val })}
-          getSection={getSection}
-          setSection={setSection}
-        />
+          onDragOver={handleDragOver(domain.id)}
+          onDrop={handleDrop(domain.id)}
+          className={`transition-all duration-150 ${
+            overId === domain.id && draggingId !== domain.id
+              ? 'border-t-2 border-ibm-blue'
+              : 'border-t-2 border-transparent'
+          }`}
+        >
+          <DomainRow
+            domain={domain}
+            enabled={domains.includes(domain.id)}
+            onToggle={() => toggleDomain(domain.id)}
+            answers={answers[domain.id]}
+            onChange={val => onChange({ ...answers, [domain.id]: val })}
+            getSection={getSection}
+            setSection={setSection}
+            isDragging={draggingId === domain.id}
+            dragHandleProps={{
+              draggable: true,
+              onDragStart: handleDragStart(domain.id),
+              onDragEnd:   handleDragEnd,
+            }}
+          />
+        </div>
       ))}
       <ReadinessLegend />
     </div>
