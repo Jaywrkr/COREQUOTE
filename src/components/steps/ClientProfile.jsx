@@ -1,6 +1,7 @@
 const INDUSTRIES = [
-  'Manufactura', 'Retail / Comercio', 'Salud', 'Educación', 'Financiero / Banca',
-  'Gobierno', 'Logística / Transporte', 'Tecnología', 'Construcción', 'Servicios', 'Otro',
+  'Manufactura', 'Retail / Comercio', 'Salud', 'Educación',
+  'Financiero / Banca', 'Gobierno', 'Logística / Transporte',
+  'Tecnología', 'Construcción', 'Servicios', 'Otro',
 ]
 
 const ROLES = [
@@ -11,57 +12,81 @@ const ROLES = [
   'Otro',
 ]
 
+function Field({ label, children, optional }) {
+  return (
+    <div>
+      <label className="field-label">
+        {label}
+        {optional && <span className="ml-1 text-ibm-gray50 normal-case font-normal">(opcional)</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
 export default function ClientProfile({ data, onChange }) {
-  const set = (key, value) => onChange({ ...data, [key]: value })
+  const set = (key, val) => onChange({ ...data, [key]: val })
 
   return (
-    <div className="step-enter space-y-5">
-      <div>
-        <label className="label">Nombre de la empresa *</label>
-        <input className="input" placeholder="Ej: Empresa XYZ S.A." value={data.company || ''} onChange={e => set('company', e.target.value)} />
-      </div>
+    <div className="space-y-6">
+      <div className="surface p-6 space-y-5">
+        <p className="text-xs font-semibold uppercase tracking-widest text-ibm-gray50 dark:text-ibm-gray30">Empresa</p>
 
-      <div>
-        <label className="label">Industria</label>
-        <select className="input" value={data.industry || ''} onChange={e => set('industry', e.target.value)}>
-          <option value="">Seleccionar...</option>
-          {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
-        </select>
-      </div>
+        <Field label="Nombre de la empresa *">
+          <input
+            className="field"
+            placeholder="Ej: Empresa XYZ S.A."
+            value={data.company || ''}
+            onChange={e => set('company', e.target.value)}
+          />
+        </Field>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="label">Número de usuarios</label>
-          <select className="input" value={data.userCount || ''} onChange={e => set('userCount', e.target.value)}>
+        <Field label="Industria" optional>
+          <select className="field" value={data.industry || ''} onChange={e => set('industry', e.target.value)}>
             <option value="">Seleccionar...</option>
-            {['1-25', '26-50', '51-100', '101-250', '251-500', '500+'].map(o => <option key={o}>{o}</option>)}
+            {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
           </select>
-        </div>
-        <div>
-          <label className="label">Ubicaciones</label>
-          <select className="input" value={data.locationCount || ''} onChange={e => set('locationCount', e.target.value)}>
-            <option value="">Seleccionar...</option>
-            {['1', '2', '3-5', '6-10', '10+'].map(o => <option key={o}>{o}</option>)}
-          </select>
-        </div>
-      </div>
+        </Field>
 
-      <div className="pt-1 border-t border-gray-100">
-        <p className="text-xs text-gray-400 mb-4 font-medium uppercase tracking-wide">Contacto en el cliente</p>
-        <div className="space-y-4">
-          <div>
-            <label className="label">Nombre del contacto</label>
-            <input className="input" placeholder="Nombre completo" value={data.contactName || ''} onChange={e => set('contactName', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Rol del contacto</label>
-            <select className="input" value={data.contactRole || ''} onChange={e => set('contactRole', e.target.value)}>
-              <option value="">Seleccionar...</option>
-              {ROLES.map(r => <option key={r}>{r}</option>)}
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Usuarios" optional>
+            <select className="field" value={data.userCount || ''} onChange={e => set('userCount', e.target.value)}>
+              <option value="">—</option>
+              {['1-25', '26-50', '51-100', '101-250', '251-500', '500+'].map(o => <option key={o}>{o}</option>)}
             </select>
-          </div>
+          </Field>
+          <Field label="Ubicaciones" optional>
+            <select className="field" value={data.locationCount || ''} onChange={e => set('locationCount', e.target.value)}>
+              <option value="">—</option>
+              {['1', '2', '3-5', '6-10', '10+'].map(o => <option key={o}>{o}</option>)}
+            </select>
+          </Field>
         </div>
       </div>
+
+      <div className="surface p-6 space-y-5">
+        <p className="text-xs font-semibold uppercase tracking-widest text-ibm-gray50 dark:text-ibm-gray30">Contacto del cliente</p>
+
+        <Field label="Nombre" optional>
+          <input
+            className="field"
+            placeholder="Nombre completo"
+            value={data.contactName || ''}
+            onChange={e => set('contactName', e.target.value)}
+          />
+        </Field>
+
+        <Field label="Rol" optional>
+          <select className="field" value={data.contactRole || ''} onChange={e => set('contactRole', e.target.value)}>
+            <option value="">Seleccionar...</option>
+            {ROLES.map(r => <option key={r}>{r}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      <p className="text-xs text-ibm-gray50 dark:text-ibm-gray30">
+        Solo el nombre de la empresa es requerido. El resto puede completarse después.
+      </p>
     </div>
   )
 }

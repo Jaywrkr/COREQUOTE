@@ -1,37 +1,57 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import mermaid from 'mermaid'
 import { generateZoneDiagram, generateMermaidDiagram } from '../../utils/diagramGenerator'
+import { DOMAINS } from '../../data/domains'
 
 mermaid.initialize({
   startOnLoad: false,
   theme: 'base',
   themeVariables: {
-    primaryColor: '#0052CC',
-    primaryTextColor: '#fff',
-    primaryBorderColor: '#003380',
-    lineColor: '#94A3B8',
-    secondaryColor: '#E6F0FF',
-    tertiaryColor: '#F8FAFC',
-    fontSize: '14px',
+    primaryColor: '#0f62fe',
+    primaryTextColor: '#f4f4f4',
+    primaryBorderColor: '#0043ce',
+    lineColor: '#6f6f6f',
+    secondaryColor: '#262626',
+    tertiaryColor: '#393939',
+    background: '#161616',
+    mainBkg: '#262626',
+    nodeBorder: '#525252',
+    clusterBkg: '#393939',
+    titleColor: '#f4f4f4',
+    edgeLabelBackground: '#262626',
+    fontSize: '13px',
   },
-  flowchart: { curve: 'basis', padding: 20 },
+  flowchart: { curve: 'basis', padding: 16 },
 })
+
+function ZoneArrow() {
+  return (
+    <div className="flex justify-center my-1">
+      <div className="flex flex-col items-center gap-0.5">
+        <div className="w-px h-5 bg-ibm-gray50" />
+        <svg className="w-3 h-3 text-ibm-gray50" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </div>
+    </div>
+  )
+}
 
 function ZoneBlock({ zone }) {
   return (
     <div
-      className="rounded-2xl border-2 p-4 min-w-[140px]"
-      style={{ borderColor: zone.color, backgroundColor: zone.colorLight }}
+      className="p-3 sm:p-4 border"
+      style={{ borderColor: zone.color, backgroundColor: zone.colorLight + '22' }}
     >
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xl">{zone.icon}</span>
+        <span className="text-lg" style={{ color: zone.color }}>{zone.icon}</span>
         <div>
-          <p className="text-xs font-bold text-gray-800 leading-tight">{zone.label}</p>
-          {zone.brand && <p className="text-xs text-gray-500">{zone.brand}</p>}
+          <p className="text-xs font-semibold text-ibm-gray100 dark:text-ibm-gray10 leading-tight">{zone.label}</p>
+          {zone.brand && <p className="text-xs text-ibm-gray50 font-mono">{zone.brand}</p>}
         </div>
       </div>
       {zone.items?.map((item, i) => (
-        <p key={i} className="text-xs text-gray-600 mt-1">• {item}</p>
+        <p key={i} className="text-xs text-ibm-gray60 dark:text-ibm-gray30 mt-0.5">· {item}</p>
       ))}
     </div>
   )
@@ -39,80 +59,62 @@ function ZoneBlock({ zone }) {
 
 function ZoneDiagram({ assessment }) {
   const { zones, coreZones } = generateZoneDiagram(assessment)
+  const activeDomains = assessment.domains
+
+  if (activeDomains.length === 0) {
+    return (
+      <div className="text-center py-12 text-ibm-gray50">
+        <p className="text-sm">Activa al menos un dominio en la evaluación para ver el diagrama.</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-3">
-      {/* Internet layer */}
+    <div className="max-w-sm mx-auto">
       <div className="flex justify-center">
-        {zones.filter(z => z.layer === 0).map(z => <ZoneBlock key={z.id} zone={z} />)}
+        {zones.filter(z => z.layer === 0).map(z => (
+          <div key={z.id} className="w-48"><ZoneBlock zone={z} /></div>
+        ))}
       </div>
 
-      {/* Arrow */}
-      <div className="flex justify-center">
-        <div className="flex flex-col items-center gap-1">
-          <div className="w-px h-6 bg-gray-300" />
-          <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Security layer */}
       {zones.filter(z => z.layer === 1).length > 0 && (
         <>
+          <ZoneArrow />
           <div className="flex justify-center">
-            {zones.filter(z => z.layer === 1).map(z => <ZoneBlock key={z.id} zone={z} />)}
-          </div>
-          <div className="flex justify-center">
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-px h-6 bg-gray-300" />
-              <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-              </svg>
-            </div>
+            {zones.filter(z => z.layer === 1).map(z => (
+              <div key={z.id} className="w-48"><ZoneBlock zone={z} /></div>
+            ))}
           </div>
         </>
       )}
 
-      {/* Network layer */}
       {zones.filter(z => z.layer === 2).length > 0 && (
         <>
+          <ZoneArrow />
           <div className="flex justify-center">
-            {zones.filter(z => z.layer === 2).map(z => <ZoneBlock key={z.id} zone={z} />)}
-          </div>
-          <div className="flex justify-center">
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-px h-6 bg-gray-300" />
-              <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-              </svg>
-            </div>
+            {zones.filter(z => z.layer === 2).map(z => (
+              <div key={z.id} className="w-full"><ZoneBlock zone={z} /></div>
+            ))}
           </div>
         </>
       )}
 
-      {/* Core: servers, storage, backup, virtualization */}
       {coreZones.length > 0 && (
-        <div className="grid grid-cols-2 gap-3">
-          {coreZones.map(z => <ZoneBlock key={z.id} zone={z} />)}
-        </div>
+        <>
+          <ZoneArrow />
+          <div className="grid grid-cols-2 gap-2">
+            {coreZones.map(z => <ZoneBlock key={z.id} zone={z} />)}
+          </div>
+        </>
       )}
 
-      {/* Users */}
+      <ZoneArrow />
       <div className="flex justify-center">
-        <div className="flex flex-col items-center gap-1">
-          <div className="w-px h-6 bg-gray-300" />
-          <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-          </svg>
-        </div>
-      </div>
-      <div className="flex justify-center">
-        <div className="rounded-2xl border-2 border-gray-300 bg-gray-50 p-4 min-w-[140px] text-center">
-          <span className="text-2xl">👥</span>
-          <p className="text-xs font-bold text-gray-700 mt-1">Usuarios</p>
+        <div className="w-48 p-3 border border-ibm-gray30 dark:border-ibm-gray70 text-center">
+          <span className="text-lg">👥</span>
+          <p className="text-xs font-semibold text-ibm-gray100 dark:text-ibm-gray10 mt-1">Usuarios</p>
           {assessment.client?.userCount && (
-            <p className="text-xs text-gray-500">{assessment.client.userCount} usuarios</p>
+            <p className="text-xs text-ibm-gray50 font-mono">{assessment.client.userCount}</p>
           )}
         </div>
       </div>
@@ -121,28 +123,30 @@ function ZoneDiagram({ assessment }) {
 }
 
 function TechnicalDiagram({ assessment }) {
-  const ref = useRef(null)
   const [svg, setSvg] = useState('')
-  const [error, setError] = useState(false)
+  const [err, setErr] = useState(false)
 
   useEffect(() => {
     const code = generateMermaidDiagram(assessment)
-    mermaid.render('mermaid-tech-diagram', code)
-      .then(({ svg }) => setSvg(svg))
-      .catch(() => setError(true))
+    mermaid.render(`mermaid-${Date.now()}`, code)
+      .then(r => setSvg(r.svg))
+      .catch(() => setErr(true))
   }, [assessment])
 
-  if (error) return (
-    <div className="text-center py-10 text-gray-400">
+  if (err) return (
+    <div className="text-center py-10 text-ibm-gray50">
       <p className="text-sm">No se pudo generar el diagrama técnico.</p>
-      <p className="text-xs mt-1">Completa más datos del cuestionario.</p>
+      <p className="text-xs mt-1">Completa más datos en la evaluación.</p>
     </div>
+  )
+
+  if (!svg) return (
+    <div className="text-center py-10 text-ibm-gray50 text-sm animate-pulse">Generando diagrama...</div>
   )
 
   return (
     <div
-      ref={ref}
-      className="overflow-auto rounded-xl bg-white border border-gray-100 p-4"
+      className="overflow-auto surface p-4 mermaid"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   )
@@ -151,39 +155,56 @@ function TechnicalDiagram({ assessment }) {
 export default function DiagramView({ assessment }) {
   const [view, setView] = useState('zonas')
 
+  const activeDomains = DOMAINS.filter(d => assessment.domains.includes(d.id))
+
   return (
-    <div className="step-enter space-y-4">
-      {/* Toggle */}
-      <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-        <button
-          onClick={() => setView('zonas')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-            view === 'zonas' ? 'bg-white shadow-sm text-core-blue' : 'text-gray-500'
-          }`}
-        >
-          Vista por zonas
-        </button>
-        <button
-          onClick={() => setView('tecnico')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-            view === 'tecnico' ? 'bg-white shadow-sm text-core-blue' : 'text-gray-500'
-          }`}
-        >
-          Diagrama técnico
-        </button>
+    <div className="step-enter space-y-6">
+      {/* Active domains summary */}
+      <div className="flex flex-wrap gap-2">
+        {activeDomains.map(d => (
+          <span
+            key={d.id}
+            className="text-xs px-2.5 py-1 border font-mono"
+            style={{ borderColor: d.color, color: d.color, backgroundColor: d.color + '18' }}
+          >
+            {d.icon} {d.label}
+          </span>
+        ))}
+        {activeDomains.length === 0 && (
+          <span className="text-xs text-ibm-gray50">Ningún dominio activo</span>
+        )}
       </div>
 
-      <p className="text-xs text-gray-400 text-center">
+      {/* View toggle */}
+      <div className="flex border border-ibm-gray20 dark:border-ibm-gray70 w-fit">
+        {[
+          { id: 'zonas', label: 'Vista por zonas' },
+          { id: 'tecnico', label: 'Diagrama técnico' },
+        ].map(v => (
+          <button
+            key={v.id}
+            onClick={() => setView(v.id)}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              view === v.id
+                ? 'bg-ibm-blue text-white'
+                : 'text-ibm-gray60 dark:text-ibm-gray30 hover:bg-ibm-gray20 dark:hover:bg-ibm-gray80'
+            }`}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-ibm-gray50">
         {view === 'zonas'
-          ? 'Vista para mostrar al cliente — clara y sin jerga técnica'
-          : 'Vista técnica para propuestas internas'}
+          ? 'Vista conceptual — para mostrar al cliente sin jerga técnica'
+          : 'Vista técnica — para la propuesta interna y arquitectura'}
       </p>
 
-      {view === 'zonas' ? (
-        <ZoneDiagram assessment={assessment} />
-      ) : (
-        <TechnicalDiagram assessment={assessment} />
-      )}
+      {view === 'zonas'
+        ? <ZoneDiagram assessment={assessment} />
+        : <TechnicalDiagram assessment={assessment} />
+      }
     </div>
   )
 }

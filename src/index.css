@@ -3,42 +3,114 @@
 @tailwind utilities;
 
 @layer base {
+  html { @apply dark; }
+
   body {
-    @apply bg-gray-50 text-gray-900 font-sans m-0;
+    @apply font-sans antialiased
+           bg-ibm-gray10 text-ibm-gray100
+           dark:bg-ibm-gray100 dark:text-ibm-gray10
+           transition-colors duration-200;
+    margin: 0;
   }
-  #root {
-    @apply min-h-screen;
-  }
+
+  * { box-sizing: border-box; }
 }
 
 @layer components {
+  /* Buttons */
   .btn-primary {
-    @apply bg-core-blue text-white px-6 py-3 rounded-xl font-semibold text-sm active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2
+           bg-ibm-blue text-white
+           px-4 py-2.5 text-sm font-medium
+           hover:bg-ibm-blue-70 active:bg-ibm-blue-70
+           disabled:opacity-40 disabled:cursor-not-allowed
+           transition-colors;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           text-ibm-gray60 dark:text-ibm-gray30
+           px-4 py-2.5 text-sm font-medium
+           hover:bg-ibm-gray20 dark:hover:bg-ibm-gray80
+           transition-colors;
   }
   .btn-secondary {
-    @apply bg-white border border-gray-200 text-gray-700 px-6 py-3 rounded-xl font-semibold text-sm active:scale-95 transition-all;
+    @apply inline-flex items-center justify-center gap-2
+           border border-ibm-gray70 dark:border-ibm-gray50
+           text-ibm-gray100 dark:text-ibm-gray10
+           px-4 py-2.5 text-sm font-medium
+           hover:bg-ibm-gray20 dark:hover:bg-ibm-gray80
+           transition-colors;
   }
-  .card {
-    @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-5;
+
+  /* Inputs */
+  .field {
+    @apply w-full bg-ibm-gray20 dark:bg-ibm-gray80
+           border-b-2 border-ibm-gray50 dark:border-ibm-gray50
+           focus:border-ibm-blue outline-none
+           px-4 py-3 text-sm
+           text-ibm-gray100 dark:text-ibm-gray10
+           placeholder:text-ibm-gray50
+           transition-colors;
   }
-  .input {
-    @apply w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-core-blue transition-colors bg-white;
+  .field-label {
+    @apply block text-xs font-medium text-ibm-gray60 dark:text-ibm-gray30 mb-1 uppercase tracking-wide;
   }
-  .label {
-    @apply block text-sm font-medium text-gray-700 mb-1.5;
+
+  /* Surface */
+  .surface {
+    @apply bg-white dark:bg-ibm-gray90 border border-ibm-gray20 dark:border-ibm-gray80;
+  }
+  .surface-2 {
+    @apply bg-ibm-gray10 dark:bg-ibm-gray80 border border-ibm-gray20 dark:border-ibm-gray70;
+  }
+
+  /* Option chips */
+  .option-chip {
+    @apply flex items-center justify-center px-3 py-2.5 text-sm font-medium
+           border transition-colors cursor-pointer text-left;
+  }
+  .option-chip.active {
+    @apply border-ibm-blue bg-ibm-blue-10 dark:bg-ibm-blue/20 text-ibm-blue;
+  }
+  .option-chip.inactive {
+    @apply border-ibm-gray20 dark:border-ibm-gray70
+           text-ibm-gray100 dark:text-ibm-gray10
+           hover:border-ibm-gray50 dark:hover:border-ibm-gray50
+           bg-white dark:bg-ibm-gray90;
   }
 }
 
+/* Step animation */
 .step-enter {
-  animation: slideIn 0.2s ease-out;
+  animation: fadeSlide 0.18s ease-out;
+}
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(16px); }
-  to   { opacity: 1; transform: translateX(0); }
+/* Mermaid diagram dark mode */
+.dark .mermaid svg {
+  background: transparent !important;
 }
+
+/* Toggle switch */
+.toggle-track {
+  @apply relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer
+         border-2 border-transparent rounded-full
+         transition-colors duration-200 ease-in-out;
+}
+.toggle-track.on  { @apply bg-ibm-blue; }
+.toggle-track.off { @apply bg-ibm-gray50 dark:bg-ibm-gray70; }
+.toggle-thumb {
+  @apply pointer-events-none inline-block h-4 w-4 rounded-full
+         bg-white shadow transform transition duration-200 ease-in-out;
+}
+.toggle-thumb.on  { @apply translate-x-4; }
+.toggle-thumb.off { @apply translate-x-0; }
 
 @media print {
   .no-print { display: none !important; }
-  body { background: white; }
+  body { background: white !important; color: black !important; }
+  .surface { border: 1px solid #e0e0e0 !important; }
 }
