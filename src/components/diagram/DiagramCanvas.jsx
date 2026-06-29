@@ -15,6 +15,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { generateRFDiagram, NODE_TYPES, MODEL_OPTIONS } from '../../utils/rfDiagramGenerator'
+import { EQUIPMENT_DB } from '../../data/equipment'
 
 // ─── Connection rules ─────────────────────────────────────────────────────────
 // Based on real enterprise network architecture best practices.
@@ -233,12 +234,44 @@ const CORE_SWITCH_MODELS = ['CX 6400', 'CX 8100', 'CX 8325', 'CX 8360', 'CX 9300
 function adjustRuleForModels(rule, srcType, srcModel, tgtType, tgtModel) {
   if (!rule || rule.blocked) return rule
 
+  const srcSpec = EQUIPMENT_DB[srcModel]
+  const tgtSpec = EQUIPMENT_DB[tgtModel]
+
   // Switches core/agregación/spine no entregan PoE directo a un AP
-  if (srcType === 'switch' && tgtType === 'ap' && CORE_SWITCH_MODELS.includes(srcModel)) {
-    return {
-      options: ['Uplink hacia switch de acceso (sin PoE directo)'],
-      warn: `Los switches core/agregación (${CORE_SWITCH_MODELS.join(', ')}) no entregan PoE directo. Coloca un switch de acceso (CX 6000–6300) entre este switch y el AP.`,
+  if (srcType === 'switch' && tgtType === 'ap') {
+    const hasPoe = srcSpec ? srcSpec.poe != null : !CORE_SWITCH_MODELS.includes(srcModel)
+    if (!hasPoe) {
+      return {
+        options: ['Uplink sin PoE (requiere switch de acceso con PoE)'],
+        warn: srcModel
+          ? `${srcModel} no tiene PoE. Coloca un switch de acceso (CX 6000–6300) entre este switch y el AP.`
+          : `Los switches core/agregación (${CORE_SWITCH_MODELS.join(', ')}) no entregan PoE directo. Coloca un switch de acceso (CX 6000–6300).`,
+      }
     }
+    // Switch with PoE: build options from its actual PoE ports
+    if (srcSpec?.poe) {
+      const poeLabel = srcSpec.poe.standard
+      return {
+        options: [
+          `${poeLabel} · ${srcSpec.poe.budget}`,
+          'PoE (802.3af — 15.4W)',
+          'Uplink fibra (AP outdoor)',
+        ],
+      }
+    }
+  }
+
+  // switch → servidor: use actual NIC speeds from server spec
+  if (srcType === 'switch' && tgtType === 'servidor' && tgtSpec) {
+    const nicOptions = tgtSpec.ports.map(p => `${p.label} — ${p.speed}`)
+    const expansion = tgtSpec.expansion?.filter(e => /NIC|SFP|25G|100G/.test(e)).map(e => `Expansión: ${e}`) || []
+    return { options: [...nicOptions, ...expansion, 'Bonding / LAG (LACP)'] }
+  }
+
+  // servidor → switch: symmetric
+  if (srcType === 'servidor' && tgtType === 'switch' && srcSpec) {
+    const nicOptions = srcSpec.ports.map(p => `${p.label} — ${p.speed}`)
+    return { options: [...nicOptions, 'Bonding / LAG (LACP)'] }
   }
 
   // Storage Synology no soporta Fibre Channel
@@ -443,12 +476,22 @@ function ConnectionPicker({ pending, onConfirm, onCancel }) {
 }
 
 // ─── Note panel ───────────────────────────────────────────────────────────────
+function SpecRow({ label, value }) {
+  return (
+    <div className="flex gap-2 text-[10px] font-mono leading-snug">
+      <span className="text-ibm-gray50 flex-shrink-0 w-24">{label}</span>
+      <span className="text-ibm-gray20">{value}</span>
+    </div>
+  )
+}
+
 function NotePanel({ node, onUpdate, onClose, onDelete }) {
   const [label,  setLabel]  = useState(node.data.label)
   const [note,   setNote]   = useState(node.data.note || '')
   const [status, setStatus] = useState(node.data.status || 'existing')
   const [model,  setModel]  = useState(node.data.model || '')
   const modelChoices = MODEL_OPTIONS[node.data.nodeType]
+  const specs = EQUIPMENT_DB[model] || null
 
   const save = () => {
     const labelEdited = label !== node.data.label || node.data.labelEdited
@@ -513,6 +556,58 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
               <option value="">— Sin especificar —</option>
               {modelChoices.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
+          </div>
+        )}
+        {specs && (
+          <div className="space-y-3">
+            <div className="border-t border-ibm-gray70 pt-3">
+              <p className="text-[10px] font-bold text-ibm-gray50 uppercase tracking-widest mb-2">Ficha técnica</p>
+              {/* Key specs */}
+              <div className="space-y-1">
+                {specs.formFactor && <SpecRow label="Factor de forma" value={specs.formFactor} />}
+                {specs.cpu        && <SpecRow label="CPU"             value={specs.cpu} />}
+                {specs.ram        && <SpecRow label="Memoria"         value={specs.ram} />}
+                {specs.storage    && <SpecRow label="Almacenamiento"  value={specs.storage} />}
+                {specs.switching  && <SpecRow label="Capacidad"       value={specs.switching} />}
+                {specs.routing    && <SpecRow label="Routing"         value={specs.routing} />}
+                {specs.management && <SpecRow label="Gestión"         value={specs.management} />}
+                {specs.poe?.budget && <SpecRow label="PoE budget"     value={`${specs.poe.budget} — ${specs.poe.standard}`} />}
+              </div>
+            </div>
+            {/* Ports */}
+            <div>
+              <p className="text-[10px] font-bold text-ibm-gray50 uppercase tracking-widest mb-2">Puertos</p>
+              <div className="space-y-1">
+                {specs.ports.map((p, i) => (
+                  <div key={i} className="flex items-start gap-2 text-[10px] font-mono">
+                    <span className="text-ibm-blue mt-0.5">▸</span>
+                    <div>
+                      <span className="text-ibm-gray10">{p.label}</span>
+                      {p.poe && <span className="ml-1 text-ibm-yellow">· {p.poe}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Expansion */}
+            {specs.expansion?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-ibm-gray50 uppercase tracking-widest mb-2">Expansión</p>
+                <div className="space-y-0.5">
+                  {specs.expansion.map((e, i) => (
+                    <div key={i} className="text-[10px] font-mono text-ibm-gray30 flex gap-2">
+                      <span className="text-ibm-gray50">·</span>{e}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Notes */}
+            {specs.notes && (
+              <div className="bg-ibm-gray80 border border-ibm-gray70 px-2 py-1.5">
+                <p className="text-[10px] text-ibm-gray30 leading-snug">{specs.notes}</p>
+              </div>
+            )}
           </div>
         )}
       </div>

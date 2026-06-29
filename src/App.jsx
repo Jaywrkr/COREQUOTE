@@ -597,6 +597,12 @@ export default function App() {
           />
         </Sheet>
       )}
+
+      {/* ── Version bar ── */}
+      <footer className="no-print fixed bottom-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-1 bg-ibm-gray100 border-t border-ibm-gray80 text-[10px] font-mono text-ibm-gray50">
+        <span>CoreSolutions Assessment · v{__APP_VERSION__}</span>
+        <span>Última build: {new Date(__BUILD_DATE__).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</span>
+      </footer>
     </div>
   )
 }

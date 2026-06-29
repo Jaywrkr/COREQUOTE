@@ -87,64 +87,94 @@ export function generateRFDiagram(assessment) {
 
   // Switching / redes
   const netParent = has('seguridad') ? 'firewall' : 'internet'
+  let lastSwitchId = null
   if (has('redes')) {
     const r = ans('redes')
-    const swLabel = r.switchCount ? `Switching · ${r.switchCount} switches` : 'Switching'
-    nodes.push(node('switch', 'switch', { x: 340, y: 260 }, { label: swLabel }))
-    edges.push(edge('e-net-sw', netParent, 'switch'))
+    const swCount = Math.min(Math.max(parseInt(r.switchCount) || 1, 1), 6)
+    if (swCount === 1) {
+      nodes.push(node('switch', 'switch', { x: 340, y: 260 }))
+      edges.push(edge('e-net-sw', netParent, 'switch'))
+      lastSwitchId = 'switch'
+    } else {
+      // Multiple switches: lay them out horizontally, chain uplinks
+      const swSpread = 160
+      const swStartX = 340 - ((swCount - 1) * swSpread) / 2
+      for (let i = 0; i < swCount; i++) {
+        const id = `switch-${i + 1}`
+        nodes.push(node(id, 'switch', { x: swStartX + i * swSpread, y: 260 }, { label: `Switch ${i + 1}` }))
+        // First switch uplinks to network parent; others uplink to first switch (stack/cascade)
+        edges.push(edge(`e-net-sw-${i}`, i === 0 ? netParent : 'switch-1', id))
+      }
+      lastSwitchId = 'switch-1'
+    }
 
     if (r.hasWifi === 'Sí') {
-      const apLabel = r.apCount ? `WiFi · ${r.apCount} APs` : 'WiFi / APs'
-      nodes.push(node('ap', 'ap', { x: 580, y: 320 }, { label: apLabel }))
-      edges.push(edge('e-sw-ap', 'switch', 'ap'))
+      const apCount = Math.min(Math.max(parseInt(r.apCount) || 1, 1), 4)
+      const apSpread = 130
+      const apStartX = 340 - ((apCount - 1) * apSpread) / 2
+      for (let i = 0; i < apCount; i++) {
+        const apId = apCount === 1 ? 'ap' : `ap-${i + 1}`
+        const apLabel = apCount === 1 ? 'WiFi / APs' : `AP ${i + 1}`
+        nodes.push(node(apId, 'ap', { x: apStartX + i * apSpread, y: 380 }, { label: apLabel }))
+        edges.push(edge(`e-sw-ap-${i}`, lastSwitchId, apId))
+      }
     }
   }
 
   // Core parent for servers/storage/backup/vm
-  const coreParent = has('redes') ? 'switch' : netParent
+  const coreParent = lastSwitchId || netParent
 
-  // Core nodes spread horizontally
-  const coreNodes = []
-  if (has('servidores')) coreNodes.push('servidor')
-  if (has('servidores') && ans('servidores').serverOS?.includes?.('AIX (IBM)')) coreNodes.push('power')
-  if (has('storage'))    coreNodes.push('storage')
-  if (has('storage') && ans('backup').backupLocation?.includes?.('Disco externo / cinta')) coreNodes.push('tape')
-  if (has('backup'))     coreNodes.push('backup')
-  if (has('virtualizacion')) coreNodes.push('vm')
+  // Build core node descriptors — multiple servers/VMs expand to individual nodes
+  const coreDescriptors = [] // { id, type, overrides }
 
-  const coreY   = 390
-  const spread  = 170
-  const totalW  = (coreNodes.length - 1) * spread
-  const startX  = 340 - totalW / 2
+  if (has('servidores')) {
+    const s = ans('servidores')
+    const count = Math.min(Math.max(parseInt(s.serverCount) || 1, 1), 8)
+    for (let i = 0; i < count; i++) {
+      const id = count === 1 ? 'servidor' : `servidor-${i + 1}`
+      const label = count === 1 ? 'Servidor x86' : `Servidor ${i + 1}`
+      coreDescriptors.push({ id, type: 'servidor', overrides: { label } })
+    }
+    if (s.serverOS?.includes?.('AIX (IBM)')) {
+      coreDescriptors.push({ id: 'power', type: 'power', overrides: {} })
+    }
+  }
+  if (has('storage')) {
+    const s = ans('storage')
+    const overrides = s.storageCapacity ? { label: `Storage · ${s.storageCapacity}` } : {}
+    coreDescriptors.push({ id: 'storage', type: 'storage', overrides })
+    if (ans('backup').backupLocation?.includes?.('Disco externo / cinta')) {
+      coreDescriptors.push({ id: 'tape', type: 'tape', overrides: {} })
+    }
+  }
+  if (has('backup')) {
+    const b = ans('backup')
+    const overrides = b.backupFrequency ? { label: `Backup · ${b.backupFrequency}` } : {}
+    coreDescriptors.push({ id: 'backup', type: 'backup', overrides })
+  }
+  if (has('virtualizacion')) {
+    const v = ans('virtualizacion')
+    const hostCount = Math.min(Math.max(parseInt(v.hostCount) || 1, 1), 6)
+    for (let i = 0; i < hostCount; i++) {
+      const id = hostCount === 1 ? 'vm' : `vm-${i + 1}`
+      const label = hostCount === 1 ? 'Virtualización' : `vSphere Host ${i + 1}`
+      coreDescriptors.push({ id, type: 'vm', overrides: { label } })
+    }
+  }
 
-  coreNodes.forEach((type, i) => {
-    const id  = type
+  const coreY  = has('redes') && ans('redes').hasWifi === 'Sí' ? 510 : 410
+  const spread = 160
+  const totalW = (coreDescriptors.length - 1) * spread
+  const startX = 340 - totalW / 2
+
+  coreDescriptors.forEach(({ id, type, overrides }, i) => {
     const pos = { x: startX + i * spread, y: coreY }
-    let overrides = {}
-
-    if (type === 'servidor') {
-      const s = ans('servidores')
-      if (s.serverCount) overrides.label = `Servidores · ${s.serverCount}`
-    }
-    if (type === 'storage') {
-      const s = ans('storage')
-      if (s.storageCapacity) overrides.label = `Storage · ${s.storageCapacity}`
-    }
-    if (type === 'backup') {
-      const b = ans('backup')
-      if (b.backupFrequency) overrides.label = `Backup · ${b.backupFrequency}`
-    }
-    if (type === 'vm') {
-      const v = ans('virtualizacion')
-      if (v.hostCount) overrides.label = `vSphere · ${v.hostCount} hosts`
-    }
-
     nodes.push(node(id, type, pos, overrides))
     edges.push(edge(`e-core-${id}`, coreParent, id))
   })
 
   // Users — always at bottom
-  const usersY = coreNodes.length > 0 ? 520 : coreY
+  const usersY = coreDescriptors.length > 0 ? coreY + 120 : coreY
   nodes.push(node('usuarios', 'usuarios', { x: 340, y: usersY }))
   edges.push(edge('e-core-usr', coreParent, 'usuarios'))
 
