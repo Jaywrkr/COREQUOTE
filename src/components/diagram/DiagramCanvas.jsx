@@ -16,6 +16,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { generateRFDiagram, NODE_TYPES, MODEL_OPTIONS } from '../../utils/rfDiagramGenerator'
 import { EQUIPMENT_DB } from '../../data/equipment'
+import { getRecommendations } from '../../utils/recommendations'
 
 // ─── Connection rules ─────────────────────────────────────────────────────────
 // Based on real enterprise network architecture best practices.
@@ -506,7 +507,7 @@ function SpecRow({ label, value }) {
   )
 }
 
-function NotePanel({ node, onUpdate, onClose, onDelete }) {
+function NotePanel({ node, onUpdate, onClose, onDelete, allNodes, allEdges }) {
   const [label,  setLabel]  = useState(node.data.label)
   const [note,   setNote]   = useState(node.data.note || '')
   const [status, setStatus] = useState(node.data.status || 'existing')
@@ -635,6 +636,88 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
             )}
           </div>
         )}
+
+        {/* ── Port occupancy ── */}
+        {(() => {
+          const connectedEdges = (allEdges || []).filter(e => e.source === node.id || e.target === node.id)
+          if (connectedEdges.length === 0 && !specs) return null
+          const nodeById = id => (allNodes || []).find(n => n.id === id)
+
+          // Build active connection list
+          const activeConns = connectedEdges.map(e => {
+            const isOut = e.source === node.id
+            const other = nodeById(isOut ? e.target : e.source)
+            return {
+              direction: isOut ? '→' : '←',
+              otherLabel: other?.data?.label || (isOut ? e.target : e.source),
+              otherIcon: other?.data?.icon || '⬡',
+              edgeLabel: e.data?.label || '—',
+            }
+          })
+
+          // Estimate port usage from specs
+          let portRows = null
+          if (specs?.ports) {
+            const totalPorts = specs.ports.reduce((sum, p) => sum + (p.count || 1), 0)
+            const usedPorts = connectedEdges.length
+            const freePorts = Math.max(0, totalPorts - usedPorts)
+            portRows = { totalPorts, usedPorts, freePorts }
+          }
+
+          return (
+            <div className="border-t border-ibm-gray70 pt-3 space-y-3">
+              {/* Active connections */}
+              {activeConns.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-ibm-gray50 uppercase tracking-widest mb-2">
+                    Conexiones activas ({activeConns.length})
+                  </p>
+                  <div className="space-y-1">
+                    {activeConns.map((c, i) => (
+                      <div key={i} className="flex items-start gap-1.5 text-[9px] font-mono bg-ibm-gray80 px-2 py-1.5">
+                        <span className="text-ibm-gray50 flex-shrink-0">{c.direction}</span>
+                        <span className="text-sm leading-none flex-shrink-0">{c.otherIcon}</span>
+                        <div className="min-w-0">
+                          <p className="text-ibm-gray20 truncate">{c.otherLabel}</p>
+                          <p className="text-ibm-blue mt-0.5">{c.edgeLabel}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Port availability summary */}
+              {portRows && (
+                <div>
+                  <p className="text-[10px] font-bold text-ibm-gray50 uppercase tracking-widest mb-2">Estado de puertos</p>
+                  <div className="bg-ibm-gray80 px-3 py-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-ibm-gray50">Total puertos</span>
+                      <span className="text-ibm-gray20">{portRows.totalPorts}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-ibm-gray50">Ocupados</span>
+                      <span style={{ color: portRows.usedPorts > 0 ? '#ff832b' : '#8d8d8d' }}>{portRows.usedPorts}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-ibm-gray50">Disponibles</span>
+                      <span style={{ color: portRows.freePorts > 0 ? '#42be65' : '#da1e28' }}>{portRows.freePorts}</span>
+                    </div>
+                    {/* Visual bar */}
+                    <div className="mt-2 h-1.5 bg-ibm-gray70 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, (portRows.usedPorts / portRows.totalPorts) * 100)}%`,
+                          background: portRows.freePorts === 0 ? '#da1e28' : portRows.freePorts <= 2 ? '#ff832b' : '#0f62fe',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       <div className="flex gap-2 p-4 border-t border-ibm-gray70 flex-shrink-0">
@@ -645,6 +728,109 @@ function NotePanel({ node, onUpdate, onClose, onDelete }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Recommendation panel ─────────────────────────────────────────────────────
+function RecommendationPanel({ nodes, edges, onConnect, onClose }) {
+  const recs = getRecommendations(nodes, edges)
+
+  if (recs.length === 0) {
+    return (
+      <div className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl" style={{ width: 300 }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-ibm-gray70 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-base">💡</span>
+            <span className="text-xs font-semibold text-ibm-gray10">Sugerencias</span>
+          </div>
+          <button onClick={onClose} className="text-ibm-gray50 hover:text-ibm-gray10 p-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
+          <span className="text-3xl">✅</span>
+          <p className="text-xs text-ibm-gray30 leading-relaxed">El diagrama ya incluye todas las conexiones esenciales recomendadas.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const priorityLabel = p => p >= 10 ? { text: 'CRÍTICO', color: '#da1e28' }
+    : p >= 9  ? { text: 'ALTO',     color: '#ff832b' }
+    : p >= 7  ? { text: 'MEDIO',    color: '#f1c21b' }
+    : { text: 'INFO', color: '#8d8d8d' }
+
+  return (
+    <div className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl" style={{ width: 300 }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-ibm-gray70 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-base">💡</span>
+          <span className="text-xs font-semibold text-ibm-gray10">Siguiente paso</span>
+          <span className="text-[9px] font-mono px-1.5 py-0.5 font-semibold" style={{ background: 'rgba(15,98,254,0.15)', color: '#0f62fe' }}>
+            {recs.length}
+          </span>
+        </div>
+        <button onClick={onClose} className="text-ibm-gray50 hover:text-ibm-gray10 p-1">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <p className="px-4 py-2 text-[10px] text-ibm-gray50 border-b border-ibm-gray80 flex-shrink-0">
+        Basado en arquitecturas empresariales típicas · Click para conectar
+      </p>
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {recs.map(rec => {
+          const pl = priorityLabel(rec.priority)
+          return (
+            <div key={rec.id} className="bg-ibm-gray80 border border-ibm-gray70 hover:border-ibm-gray60 transition-colors">
+              {/* Priority + nodes row */}
+              <div className="px-3 pt-2.5 pb-1.5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[8px] font-mono font-bold tracking-widest px-1.5 py-0.5"
+                    style={{ color: pl.color, background: `${pl.color}18` }}>
+                    {pl.text}
+                  </span>
+                  <span className="text-[9px] font-mono text-ibm-gray50">P{rec.priority}</span>
+                </div>
+                {/* src → tgt */}
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                    <span className="text-sm flex-shrink-0">{rec.srcIcon}</span>
+                    <span className="text-[10px] text-ibm-gray20 truncate font-medium">{rec.srcLabel}</span>
+                  </div>
+                  <svg className="w-4 h-4 flex-shrink-0 text-ibm-gray50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                  <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
+                    <span className="text-[10px] text-ibm-gray20 truncate font-medium text-right">{rec.tgtLabel}</span>
+                    <span className="text-sm flex-shrink-0">{rec.tgtIcon}</span>
+                  </div>
+                </div>
+                {/* connection type */}
+                <div className="mt-1.5 flex items-center gap-1">
+                  <span className="text-ibm-blue text-[9px]">▸</span>
+                  <span className="text-[9px] font-mono text-ibm-blue">{rec.type}</span>
+                </div>
+                {/* reason */}
+                <p className="text-[9px] text-ibm-gray50 leading-snug mt-1.5">{rec.reason}</p>
+              </div>
+              {/* Connect button */}
+              <div className="px-3 pb-2.5">
+                <button
+                  onClick={() => onConnect(rec)}
+                  className="w-full py-1.5 text-[10px] font-semibold bg-ibm-blue/10 border border-ibm-blue/40 text-ibm-blue hover:bg-ibm-blue hover:text-white transition-colors"
+                >
+                  Conectar
+                </button>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -758,6 +944,7 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
   const [edges, setEdges, onEdgesChange] = useEdgesState(initRef.current.edges)
   const [selectedNode, setSelectedNode] = useState(null)
   const [showPicker, setShowPicker]     = useState(false)
+  const [showRecs, setShowRecs]         = useState(false)
   const [pendingConn, setPendingConn]   = useState(null)
   const [fullscreen, setFullscreen]     = useState(false)
   const idCounter = useRef(100)
@@ -867,7 +1054,11 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
     setPendingConn(null)
   }
 
-  const onNodeClick = useCallback((_, node) => { setSelectedNode(node); setShowPicker(false) }, [])
+  const connectRec = useCallback((rec) => {
+    addEdgeLabeled({ source: rec.srcId, target: rec.tgtId, sourceHandle: null, targetHandle: null }, rec.type)
+  }, []) // eslint-disable-line
+
+  const onNodeClick = useCallback((_, node) => { setSelectedNode(node); setShowPicker(false); setShowRecs(false) }, [])
   const onPaneClick = useCallback(() => { setSelectedNode(null); setShowPicker(false) }, [])
 
   const updateNode = (id, changes) => {
@@ -919,9 +1110,9 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
 
         <Panel position="top-left">
           <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 relative">
+            <div className="flex items-center gap-2 relative flex-wrap">
               <button
-                onClick={() => { setShowPicker(p => !p); setSelectedNode(null) }}
+                onClick={() => { setShowPicker(p => !p); setSelectedNode(null); setShowRecs(false) }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-colors
                   ${showPicker ? 'bg-ibm-blue text-white border-ibm-blue' : 'bg-ibm-gray90 text-ibm-gray10 border-ibm-gray70 hover:border-ibm-gray50'}`}
               >
@@ -930,6 +1121,26 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
                 </svg>
                 Agregar
               </button>
+              {/* Recommendations button */}
+              {(() => {
+                const recCount = getRecommendations(nodes, edges).length
+                return (
+                  <button
+                    onClick={() => { setShowRecs(r => !r); setSelectedNode(null); setShowPicker(false) }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-colors
+                      ${showRecs ? 'bg-ibm-yellow/20 text-ibm-yellow border-ibm-yellow/60' : 'bg-ibm-gray90 text-ibm-gray10 border-ibm-gray70 hover:border-ibm-gray50'}`}
+                  >
+                    <span>💡</span>
+                    <span>Sugerencias</span>
+                    {recCount > 0 && (
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: showRecs ? 'rgba(241,194,27,0.3)' : 'rgba(15,98,254,0.2)', color: showRecs ? '#f1c21b' : '#0f62fe' }}>
+                        {recCount}
+                      </span>
+                    )}
+                  </button>
+                )
+              })()}
               <p className="text-[10px] text-ibm-gray50 hidden sm:block">
                 Click nodo = editar · Click línea = eliminar · Del = borrar nodo
               </p>
@@ -970,6 +1181,16 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
         />
       )}
 
+      {/* Recommendation panel */}
+      {showRecs && (
+        <RecommendationPanel
+          nodes={nodes}
+          edges={edges}
+          onConnect={connectRec}
+          onClose={() => setShowRecs(false)}
+        />
+      )}
+
       {/* Note panel */}
       {selectedNode && (
         <NotePanel
@@ -977,6 +1198,8 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
           onUpdate={updateNode}
           onClose={() => setSelectedNode(null)}
           onDelete={deleteNode}
+          allNodes={nodes}
+          allEdges={edges}
         />
       )}
     </div>

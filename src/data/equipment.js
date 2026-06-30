@@ -1,4 +1,4 @@
-// Equipment specs database — Aruba CX, Lenovo ThinkSystem, IBM FlashSystem/Power/TS, Synology
+// Equipment specs database — Aruba CX, Lenovo ThinkSystem, IBM FlashSystem/Power/TS, Synology, Check Point Quantum
 // Used for node info panel and port-aware connection options.
 // redundancy: { count, label } → shown as split visual inside the diagram node (dual controller, dual socket, etc.)
 
@@ -739,4 +739,143 @@ export const EQUIPMENT_DB = {
     expansion: ['HA integrado — dos controladoras activo/pasivo', 'Failover automático < 30 s'],
     notes: 'Único NAS Synology con dual-controladora real (activo/pasivo). All-flash NVMe. SIN soporte FC — solo iSCSI/NFS/SMB sobre IP.',
   },
+
+  // ─── CHECK POINT QUANTUM FIREWALLS ───────────────────────────────────────────
+
+  'Quantum 3600': {
+    name: 'Check Point Quantum 3600',
+    category: 'firewall',
+    formFactor: '1U rack (desktop / rack)',
+    redundancy: null,
+    throughput: 'Hasta 10 Gbps NGFW',
+    management: 'Check Point SmartConsole / Infinity Portal',
+    ports: [
+      { label: '6× RJ45 1GbE (LAN/WAN)', count: 6, speed: '1G',  media: 'copper', poe: null },
+      { label: '4× SFP+ 10GbE',           count: 4, speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    expansion: [
+      'HA activo/pasivo con segundo Quantum 3600',
+      'Blades: IPS, Application Control, URL Filtering, Anti-Bot',
+      'Soporte CloudGuard (extensión a nube)',
+    ],
+    notes: 'Firewall SMB/mid-range. Ideal para sucursales y empresas medianas. Sin módulos de expansión de hardware.',
+  },
+
+  'Quantum 3800': {
+    name: 'Check Point Quantum 3800',
+    category: 'firewall',
+    formFactor: '1U rack',
+    redundancy: null,
+    throughput: 'Hasta 20 Gbps NGFW',
+    management: 'Check Point SmartConsole / Infinity Portal',
+    ports: [
+      { label: '8× RJ45 1GbE (LAN/WAN)', count: 8, speed: '1G',  media: 'copper', poe: null },
+      { label: '4× SFP+ 10GbE',           count: 4, speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    expansion: [
+      'HA activo/pasivo',
+      'Blades: Threat Prevention, SandBlast, IPS',
+      'Licencias por suscripción (Quantum Smart-1)',
+    ],
+    notes: 'Versión mejorada del 3600. Más throughput con el mismo factor de forma.',
+  },
+
+  'Quantum 6000': {
+    name: 'Check Point Quantum 6000',
+    category: 'firewall',
+    formFactor: '1U rack',
+    redundancy: { count: 2, label: 'Firewall (HA)' },
+    throughput: 'Hasta 40 Gbps NGFW',
+    management: 'Check Point SmartConsole / Smart-1 Cloud',
+    ports: [
+      { label: '18× RJ45 1GbE',  count: 18, speed: '1G',  media: 'copper', poe: null },
+      { label: '6× SFP+ 10GbE',  count: 6,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    expansion: [
+      'HA Cluster XL (activo/pasivo o activo/activo)',
+      'Blades: IPS, App Control, URL, Anti-Virus, Anti-Bot, SandBlast',
+      'VSX (múltiples firewalls virtuales en un appliance)',
+    ],
+    notes: 'Firewall mid-range empresarial. Soporte VSX para virtualización de firewalls. HA recomendado con segundo Quantum 6000.',
+  },
+
+  'Quantum 26000': {
+    name: 'Check Point Quantum 26000',
+    category: 'firewall',
+    formFactor: '2U rack',
+    redundancy: { count: 2, label: 'Firewall (HA)' },
+    throughput: 'Hasta 200 Gbps NGFW',
+    management: 'Check Point SmartConsole / Smart-1 Cloud / Infinity XDR',
+    ports: [
+      { label: '24× SFP+ 10GbE',  count: 24, speed: '10G',  media: 'sfp+',   poe: null },
+      { label: '4× QSFP+ 40GbE',  count: 4,  speed: '40G',  media: 'qsfp+',  poe: null },
+    ],
+    expansion: [
+      'HA Cluster XL (activo/pasivo y activo/activo)',
+      'Blades completos de Threat Prevention',
+      'VSX — hasta 250 contextos virtuales',
+      'Integración SIEM / SOC',
+    ],
+    notes: 'Enterprise high-end. Amplia densidad de puertos 10G. Típico en datacenter y campus core.',
+  },
+
+  'Quantum 28000': {
+    name: 'Check Point Quantum 28000',
+    category: 'firewall',
+    formFactor: '2U rack',
+    redundancy: { count: 2, label: 'Firewall (HA)' },
+    throughput: 'Hasta 800 Gbps NGFW',
+    management: 'Check Point SmartConsole / Infinity XDR / Infinity SOC',
+    ports: [
+      { label: '32× SFP+ 10GbE',  count: 32, speed: '10G',  media: 'sfp+',   poe: null },
+      { label: '8× QSFP28 100GbE', count: 8,  speed: '100G', media: 'qsfp28', poe: null },
+    ],
+    expansion: [
+      'HA Cluster XL — activo/activo con sincronización de estado',
+      'Maestro Hyperscale (scale-out horizontal)',
+      'Blades: SandBlast, Threat Cloud, ThreatEmulation',
+      'Integración con Infinity Portal y CloudGuard',
+    ],
+    notes: 'Top enterprise. Hasta 800 Gbps. Soporte Maestro para escalar horizontalmente añadiendo unidades al clúster.',
+  },
+
+  'Quantum Force': {
+    name: 'Check Point Quantum Force',
+    category: 'firewall',
+    formFactor: '2U rack (generación más reciente)',
+    redundancy: { count: 2, label: 'Firewall (HA)' },
+    throughput: 'Hasta 1.5 Tbps (modelos superiores)',
+    management: 'Check Point Infinity Portal / Smart-1 Cloud / XDR',
+    ports: [
+      { label: '32× SFP28 25GbE',  count: 32, speed: '25G',  media: 'sfp28',  poe: null },
+      { label: '8× QSFP28 100GbE', count: 8,  speed: '100G', media: 'qsfp28', poe: null },
+      { label: '2× QSFP-DD 400GbE', count: 2, speed: '400G', media: 'qsfp-dd', poe: null },
+    ],
+    expansion: [
+      'Maestro Hyperscale — hasta 52 unidades en cluster',
+      'AI-powered Threat Prevention (ThreatCloud AI)',
+      'Zero Trust Network Access (ZTNA) integrado',
+      'Autonomous Threat Prevention (ATP)',
+    ],
+    notes: 'Generación más reciente de Quantum. Procesadores de seguridad de última generación. Throughput hasta 1.5 Tbps con todos los blades activos.',
+  },
+
+  'Quantum Lightspeed': {
+    name: 'Check Point Quantum Lightspeed',
+    category: 'firewall',
+    formFactor: '1U rack (ASIC personalizado)',
+    redundancy: { count: 2, label: 'Firewall (HA)' },
+    throughput: '30 Tbps (ASIC hardening)',
+    management: 'Check Point Infinity Portal / Smart-1',
+    ports: [
+      { label: '24× QSFP-DD 400GbE', count: 24, speed: '400G', media: 'qsfp-dd', poe: null },
+    ],
+    expansion: [
+      'Cluster HA Lightspeed',
+      'Inspeccion SSL/TLS a velocidad de línea',
+      'Threat Prevention acelerada por ASIC',
+    ],
+    notes: 'El firewall más rápido de Check Point. ASIC personalizado (no CPU general). Para hyperscalers, carriers y centros de datos ultra-densos. 30 Tbps de throughput.',
+  },
 }
+
