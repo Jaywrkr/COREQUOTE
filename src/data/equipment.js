@@ -5,72 +5,267 @@
 export const EQUIPMENT_DB = {
 
   // ─── ARUBA CX SWITCHES ────────────────────────────────────────────────────────
+  // CX 6000 — acceso SOHO / pequeñas sucursales
+  // ──────────────────────────────────────────────────────────────────────────────
 
-  'CX 6000': {
-    name: 'Aruba CX 6000 12G',
-    category: 'switch',
-    tier: 'access',
-    formFactor: '1U (desktop / rack)',
-    switching: '56 Gbps',
-    routing: 'L2 / L3 lite',
-    management: 'AOS-CX, WebUI, REST',
+  'CX 6000-12G': {
+    name: 'Aruba CX 6000-12G',
+    category: 'switch', tier: 'access',
+    formFactor: '1U desktop / rack', switching: '56 Gbps',
+    routing: 'L2 / L3 lite', management: 'AOS-CX, WebUI, REST',
     ports: [
-      { label: '8× RJ45 PoE+',  count: 8, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at (30W)' },
-      { label: '4× RJ45',        count: 4, speed: '1G',  media: 'copper', poe: null },
-      { label: '2× SFP+',        count: 2, speed: '10G', media: 'sfp+',   poe: null },
+      { label: '8× RJ45 PoE+',  count: 8, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at — 30W/puerto' },
+      { label: '4× RJ45 (sin PoE)', count: 4, speed: '1G',  media: 'copper', poe: null },
+      { label: '2× SFP+ Uplink', count: 2, speed: '10G', media: 'sfp+',   poe: null },
     ],
     poe: { budget: '65 W total', standard: '802.3at' },
-    notes: 'Ideal para pequeñas sucursales y entornos SOHO. Sin PoE en puertos 9–12.',
+    notes: 'SOHO / sucursal pequeña. PoE solo en puertos 1–8 (65W compartido). Ideal para 1–2 APs y teléfonos IP.',
   },
 
-  'CX 6100': {
-    name: 'Aruba CX 6100 Series',
-    category: 'switch',
-    tier: 'access',
-    formFactor: '1U rack',
-    switching: '128 Gbps',
-    routing: 'L2 / L3 lite',
-    management: 'AOS-CX, WebUI, REST',
+  'CX 6000-24G': {
+    name: 'Aruba CX 6000-24G',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '88 Gbps',
+    routing: 'L2 / L3 lite', management: 'AOS-CX, WebUI, REST',
     ports: [
-      { label: '24× RJ45 PoE+',  count: 24, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at (30W)' },
-      { label: '4× SFP+',         count: 4,  speed: '10G', media: 'sfp+',   poe: null },
+      { label: '24× RJ45 (sin PoE)', count: 24, speed: '1G',  media: 'copper', poe: null },
+      { label: '4× SFP+ Uplink',     count: 4,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: null,
+    notes: 'Versión sin PoE para entornos donde no se requiere alimentar APs o teléfonos. Buena relación costo/puerto.',
+  },
+
+  'CX 6000-48G': {
+    name: 'Aruba CX 6000-48G',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '136 Gbps',
+    routing: 'L2 / L3 lite', management: 'AOS-CX, WebUI, REST',
+    ports: [
+      { label: '48× RJ45 (sin PoE)', count: 48, speed: '1G',  media: 'copper', poe: null },
+      { label: '4× SFP+ Uplink',     count: 4,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: null,
+    notes: 'Alta densidad de puertos sin PoE. Para entornos de acceso donde los endpoints no requieren alimentación.',
+  },
+
+  // CX 6100 — acceso empresarial, AOS-CX completo
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  'CX 6100-12G': {
+    name: 'Aruba CX 6100-12G',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '64 Gbps',
+    routing: 'L2 / L3 lite', management: 'AOS-CX, CLI, WebUI, REST',
+    ports: [
+      { label: '12× RJ45 (sin PoE)', count: 12, speed: '1G',  media: 'copper', poe: null },
+      { label: '2× SFP+ Uplink',     count: 2,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: null,
+    notes: 'Acceso compacto 12 puertos. AOS-CX nativo. Ideal para salas pequeñas o áreas de trabajo reducidas.',
+  },
+
+  'CX 6100-12G PoE+': {
+    name: 'Aruba CX 6100-12G PoE+',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '64 Gbps',
+    routing: 'L2 / L3 lite', management: 'AOS-CX, CLI, WebUI, REST',
+    ports: [
+      { label: '12× RJ45 PoE+',  count: 12, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at — 30W/puerto' },
+      { label: '2× SFP+ Uplink', count: 2,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: { budget: '124 W total', standard: '802.3at' },
+    notes: 'Para oficinas con ≤ 4 APs o teléfonos IP. Budget 124W compartido en 12 puertos.',
+  },
+
+  'CX 6100-24G': {
+    name: 'Aruba CX 6100-24G',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '128 Gbps',
+    routing: 'L2 / L3 lite', management: 'AOS-CX, CLI, WebUI, REST',
+    ports: [
+      { label: '24× RJ45 (sin PoE)', count: 24, speed: '1G',  media: 'copper', poe: null },
+      { label: '4× SFP+ Uplink',     count: 4,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: null,
+    notes: 'Acceso 24 puertos sin PoE. Cuando todos los endpoints tienen fuente propia (workstations, servidores).',
+  },
+
+  'CX 6100-24G PoE+': {
+    name: 'Aruba CX 6100-24G PoE+',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '128 Gbps',
+    routing: 'L2 / L3 lite', management: 'AOS-CX, CLI, WebUI, REST',
+    ports: [
+      { label: '24× RJ45 PoE+',  count: 24, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at — 30W/puerto' },
+      { label: '4× SFP+ Uplink', count: 4,  speed: '10G', media: 'sfp+',   poe: null },
     ],
     poe: { budget: '370 W total', standard: '802.3at' },
-    notes: 'Switch de acceso para medianas empresas. Variante 48G disponible.',
+    notes: 'Piso de acceso estándar. Hasta 12 APs WiFi 6 o 24 teléfonos IP activos simultáneamente.',
   },
 
-  'CX 6200': {
-    name: 'Aruba CX 6200 Series',
-    category: 'switch',
-    tier: 'access',
-    formFactor: '1U rack',
-    switching: '176 Gbps',
-    routing: 'L3 completo',
-    management: 'AOS-CX, CLI, REST, NAE',
+  'CX 6100-48G PoE+': {
+    name: 'Aruba CX 6100-48G PoE+',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '176 Gbps',
+    routing: 'L2 / L3 lite', management: 'AOS-CX, CLI, WebUI, REST',
     ports: [
-      { label: '48× RJ45 PoE+',  count: 48, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at (30W)' },
-      { label: '4× SFP+',         count: 4,  speed: '10G', media: 'sfp+',   poe: null },
-      { label: '2× QSFP+',        count: 2,  speed: '40G', media: 'qsfp+',  poe: null },
+      { label: '48× RJ45 PoE+',  count: 48, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at — 30W/puerto' },
+      { label: '4× SFP+ Uplink', count: 4,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: { budget: '370 W total', standard: '802.3at' },
+    notes: 'Alta densidad de acceso. El budget de 370W se divide entre los 48 puertos activos.',
+  },
+
+  // CX 6200 — acceso con L3 completo (OSPF, VRRP, VSX)
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  'CX 6200F-24G': {
+    name: 'Aruba CX 6200F-24G',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '128 Gbps',
+    routing: 'L3 completo (OSPF, BGP, VRRP)', management: 'AOS-CX, CLI, REST, NAE',
+    ports: [
+      { label: '24× RJ45 1G (sin PoE)', count: 24, speed: '1G',  media: 'copper', poe: null },
+      { label: '4× SFP+ Uplink',        count: 4,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: null,
+    notes: 'L3 completo sin PoE. Para pisos donde solo se conectan workstations/servidores (no APs ni teléfonos IP).',
+  },
+
+  'CX 6200F-24G PoE+': {
+    name: 'Aruba CX 6200F-24G PoE+',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '128 Gbps',
+    routing: 'L3 completo (OSPF, BGP, VRRP)', management: 'AOS-CX, CLI, REST, NAE',
+    ports: [
+      { label: '24× RJ45 PoE+',  count: 24, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at — 30W/puerto' },
+      { label: '4× SFP+ Uplink', count: 4,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: { budget: '370 W total', standard: '802.3at' },
+    notes: 'Acceso con PoE+ y L3. Permite inter-VLAN routing sin depender del core. NAE para monitoreo activo.',
+  },
+
+  'CX 6200F-48G PoE+': {
+    name: 'Aruba CX 6200F-48G PoE+',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '176 Gbps',
+    routing: 'L3 completo (OSPF, BGP, VRRP)', management: 'AOS-CX, CLI, REST, NAE',
+    ports: [
+      { label: '48× RJ45 PoE+',  count: 48, speed: '1G',  media: 'copper', poe: 'PoE+ 802.3at — 30W/puerto' },
+      { label: '4× SFP+ Uplink', count: 4,  speed: '10G', media: 'sfp+',   poe: null },
     ],
     poe: { budget: '740 W total', standard: '802.3at' },
-    notes: 'Switch de acceso con L3 completo (OSPF, VRRP). Ideal piso de distribución.',
+    notes: '48 puertos PoE+ con L3 pleno. Hasta 24 APs WiFi 6 activos. VSX para alta disponibilidad.',
   },
 
-  'CX 6300': {
-    name: 'Aruba CX 6300 Series',
-    category: 'switch',
-    tier: 'distribution',
-    formFactor: '1U rack',
-    switching: '400 Gbps',
-    routing: 'L3 completo',
-    management: 'AOS-CX, CLI, REST, NAE, VSF',
+  'CX 6200M-24G PoE++': {
+    name: 'Aruba CX 6200M-24G PoE++',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '208 Gbps',
+    routing: 'L3 completo', management: 'AOS-CX, CLI, REST, NAE',
     ports: [
-      { label: '48× RJ45 PoE++', count: 48, speed: '1G',  media: 'copper', poe: 'PoE++ 802.3bt (90W)' },
-      { label: '4× SFP28',        count: 4,  speed: '25G', media: 'sfp28',  poe: null },
-      { label: '2× QSFP+',        count: 2,  speed: '40G', media: 'qsfp+',  poe: null },
+      { label: '24× RJ45 Multi-Gig PoE++', count: 24, speed: '2.5G', media: 'copper', poe: 'PoE++ 802.3bt — 90W/puerto' },
+      { label: '4× SFP+ Uplink',            count: 4,  speed: '10G', media: 'sfp+',   poe: null },
+    ],
+    poe: { budget: '720 W total', standard: '802.3bt' },
+    notes: 'Multi-gig 2.5G por puerto. Alimenta APs WiFi 6E de alta potencia (AP-655, AP-635). Ideal para campus denso.',
+  },
+
+  'CX 6200M-48G PoE++': {
+    name: 'Aruba CX 6200M-48G PoE++',
+    category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '400 Gbps',
+    routing: 'L3 completo', management: 'AOS-CX, CLI, REST, NAE',
+    ports: [
+      { label: '48× RJ45 Multi-Gig PoE++', count: 48, speed: '2.5G', media: 'copper', poe: 'PoE++ 802.3bt — 90W/puerto' },
+      { label: '4× SFP+ Uplink',            count: 4,  speed: '10G', media: 'sfp+',   poe: null },
     ],
     poe: { budget: '1440 W total', standard: '802.3bt' },
-    notes: 'Distribución con PoE++ (90W por puerto). Soporta VSF stacking. Variante SFP 1G disponible.',
+    notes: 'Alta densidad multi-gig PoE++. Hasta 48 APs WiFi 6E simultáneos con alimentación completa.',
+  },
+
+  // CX 6300 — distribución, VSF stacking, 25G/100G uplinks
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  'CX 6300F-24': {
+    name: 'Aruba CX 6300F-24',
+    category: 'switch', tier: 'distribution',
+    formFactor: '1U rack', switching: '400 Gbps',
+    routing: 'L3 completo + MPLS', management: 'AOS-CX, CLI, REST, NAE, VSF',
+    ports: [
+      { label: '24× SFP+ Downlink',  count: 24, speed: '1G/10G', media: 'sfp+',   poe: null },
+      { label: '4× QSFP+ Uplink',    count: 4,  speed: '40G/100G', media: 'qsfp+', poe: null },
+    ],
+    poe: null,
+    notes: 'Distribución 24 puertos SFP+ descendientes. Sin PoE — para uplinks a switches de acceso o servidores 10G.',
+  },
+
+  'CX 6300F-48': {
+    name: 'Aruba CX 6300F-48',
+    category: 'switch', tier: 'distribution',
+    formFactor: '1U rack', switching: '800 Gbps',
+    routing: 'L3 completo + MPLS', management: 'AOS-CX, CLI, REST, NAE, VSF',
+    ports: [
+      { label: '48× SFP+ Downlink', count: 48, speed: '1G/10G',  media: 'sfp+',   poe: null },
+      { label: '4× QSFP+ Uplink',   count: 4,  speed: '40G/100G', media: 'qsfp+', poe: null },
+    ],
+    poe: null,
+    notes: 'Alta densidad distribución. 48 puertos SFP+ para conectar switches de acceso o servidores. VSF 2 nodos.',
+  },
+
+  'CX 6300M-24 PoE++': {
+    name: 'Aruba CX 6300M-24 PoE++',
+    category: 'switch', tier: 'distribution',
+    formFactor: '1U rack', switching: '400 Gbps',
+    routing: 'L3 completo + MPLS', management: 'AOS-CX, CLI, REST, NAE, VSF',
+    ports: [
+      { label: '24× RJ45 Multi-Gig PoE++', count: 24, speed: '2.5G', media: 'copper', poe: 'PoE++ 802.3bt — 90W/puerto' },
+      { label: '4× SFP28 Uplink',           count: 4,  speed: '25G',  media: 'sfp28',  poe: null },
+    ],
+    poe: { budget: '720 W total', standard: '802.3bt' },
+    notes: 'Distribución con PoE++. Para deployments donde el switch de distribución también alimenta APs directamente.',
+  },
+
+  'CX 6300M-48 PoE++': {
+    name: 'Aruba CX 6300M-48 PoE++',
+    category: 'switch', tier: 'distribution',
+    formFactor: '1U rack', switching: '800 Gbps',
+    routing: 'L3 completo + MPLS', management: 'AOS-CX, CLI, REST, NAE, VSF',
+    ports: [
+      { label: '48× RJ45 Multi-Gig PoE++', count: 48, speed: '2.5G', media: 'copper', poe: 'PoE++ 802.3bt — 90W/puerto' },
+      { label: '4× SFP28 Uplink',           count: 4,  speed: '25G',  media: 'sfp28',  poe: null },
+    ],
+    poe: { budget: '1440 W total', standard: '802.3bt' },
+    notes: 'Distribución de alta densidad con PoE++. Soporta VSF stacking de 2 nodos (hasta 96 puertos lógicos).',
+  },
+
+  // Familia genérica (backward compat)
+  'CX 6000': {
+    name: 'Aruba CX 6000 (familia)', category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '56–136 Gbps', routing: 'L2 / L3 lite', management: 'AOS-CX, WebUI, REST',
+    ports: [{ label: 'Ver sub-modelo específico', count: 0, speed: '1G/10G', media: 'copper/sfp+', poe: null }],
+    poe: null, notes: 'Selecciona el sub-modelo específico (CX 6000-12G, 24G, 48G) para ver specs exactas.',
+  },
+  'CX 6100': {
+    name: 'Aruba CX 6100 (familia)', category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '64–176 Gbps', routing: 'L2 / L3 lite', management: 'AOS-CX, CLI, REST',
+    ports: [{ label: 'Ver sub-modelo específico', count: 0, speed: '1G/10G', media: 'copper/sfp+', poe: null }],
+    poe: { budget: 'Hasta 370 W', standard: '802.3at' },
+    notes: 'Selecciona el sub-modelo específico (CX 6100-12G, 24G, 48G, con/sin PoE+) para ver specs exactas.',
+  },
+  'CX 6200': {
+    name: 'Aruba CX 6200 (familia)', category: 'switch', tier: 'access',
+    formFactor: '1U rack', switching: '128–400 Gbps', routing: 'L3 completo', management: 'AOS-CX, CLI, REST, NAE',
+    ports: [{ label: 'Ver sub-modelo específico', count: 0, speed: '1G/2.5G/10G', media: 'copper/sfp+', poe: null }],
+    poe: { budget: 'Hasta 1440 W', standard: '802.3bt' },
+    notes: 'Selecciona el sub-modelo específico (F=fixed-copper, M=multi-gig, con/sin PoE) para ver specs exactas.',
+  },
+  'CX 6300': {
+    name: 'Aruba CX 6300 (familia)', category: 'switch', tier: 'distribution',
+    formFactor: '1U rack', switching: '400–800 Gbps', routing: 'L3 completo + MPLS', management: 'AOS-CX, CLI, REST, NAE, VSF',
+    ports: [{ label: 'Ver sub-modelo específico', count: 0, speed: '2.5G/10G/25G/100G', media: 'sfp+/sfp28/qsfp+', poe: null }],
+    poe: { budget: 'Hasta 1440 W', standard: '802.3bt' },
+    notes: 'Selecciona el sub-modelo específico (F=SFP, M=multi-gig RJ45, con/sin PoE++) para ver specs exactas.',
   },
 
   'CX 6400': {
@@ -876,6 +1071,151 @@ export const EQUIPMENT_DB = {
       'Threat Prevention acelerada por ASIC',
     ],
     notes: 'El firewall más rápido de Check Point. ASIC personalizado (no CPU general). Para hyperscalers, carriers y centros de datos ultra-densos. 30 Tbps de throughput.',
+  },
+
+  // ─── Aruba Access Points ────────────────────────────────────────────────────
+
+  'AP-515': {
+    name: 'Aruba AP-515',
+    category: 'ap',
+    formFactor: 'Indoor ceiling/wall mount',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6 (802.11ax)', bands: '2.4 GHz + 5 GHz', streams: '4×4 MU-MIMO (5 GHz) + 2×2 (2.4 GHz)', maxThroughput: '3.55 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 2.5GbE (uplink PoE+)', count: 1, speed: '2.5G', media: 'rj45', poe: 'PoE+ 802.3at — consumo 25W' },
+      { label: '1× RJ45 1GbE (downlink opcional)', count: 1, speed: '1G', media: 'rj45', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '25W (PoE+)', antennas: 'Integradas omnidireccionales', security: 'WPA3, OWE, 802.1X' },
+    notes: 'AP indoor WiFi 6 de alta densidad. Requiere PoE+ (802.3at). WPA3 y segmentación SSID/VLAN. Ideal para oficinas medianas.',
+  },
+
+  'AP-535': {
+    name: 'Aruba AP-535',
+    category: 'ap',
+    formFactor: 'Indoor ceiling mount',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6 (802.11ax)', bands: '2.4 GHz + 5 GHz', streams: '4×4 MU-MIMO dual band', maxThroughput: '3.55 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 2.5GbE (uplink PoE+)', count: 1, speed: '2.5G', media: 'rj45', poe: 'PoE+ 802.3at — consumo 20.5W' },
+      { label: '1× USB-A (IoT / BLE 5.0)', count: 1, speed: 'USB 2.0', media: 'usb', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '20.5W (PoE+)', antennas: 'Integradas directivas (downlink beamforming)', security: 'WPA3-Enterprise, 802.1X, rogue AP detection' },
+    notes: 'AP-535 con antenas directivas y beamforming mejorado. Menor consumo que AP-515. USB para sensores IoT/BLE.',
+  },
+
+  'AP-555': {
+    name: 'Aruba AP-555',
+    category: 'ap',
+    formFactor: 'Indoor ceiling mount (alta densidad)',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6 (802.11ax)', bands: '2.4 GHz + 5 GHz', streams: '8×8 MU-MIMO (5 GHz) + 4×4 (2.4 GHz)', maxThroughput: '5.375 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 2.5GbE (uplink PoE++)', count: 1, speed: '2.5G', media: 'rj45', poe: 'PoE++ 802.3bt — consumo 30W' },
+      { label: '1× USB-A (IoT / BLE 5.0)', count: 1, speed: 'USB 2.0', media: 'usb', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '30W (PoE++)', antennas: 'Integradas 8×8 alta densidad', security: 'WPA3-Enterprise, DPP, 802.1X' },
+    notes: 'AP indoor WiFi 6 de máximo rendimiento. 8×8 MU-MIMO para auditorios y aulas grandes. Requiere PoE++ (802.3bt). Usar switch CX 6200M/6300M.',
+  },
+
+  'AP-615': {
+    name: 'Aruba AP-615',
+    category: 'ap',
+    formFactor: 'Indoor ceiling mount',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6E (802.11ax)', bands: '2.4 GHz + 5 GHz + 6 GHz (tri-band)', streams: '4×4 MU-MIMO por banda', maxThroughput: '6 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 2.5GbE (uplink PoE++)', count: 1, speed: '2.5G', media: 'rj45', poe: 'PoE++ 802.3bt — consumo 27W' },
+      { label: '1× USB-A (IoT / BLE 5.2)', count: 1, speed: 'USB 2.0', media: 'usb', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '27W (PoE++)', antennas: 'Integradas tri-band', security: 'WPA3, OWE, Enhanced Open, 802.1X' },
+    notes: 'WiFi 6E tri-band. Banda 6 GHz reduce interferencias. Requiere PoE++ (802.3bt). Para entornos con alta densidad de dispositivos modernos.',
+  },
+
+  'AP-635': {
+    name: 'Aruba AP-635',
+    category: 'ap',
+    formFactor: 'Indoor ceiling mount',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6E (802.11ax)', bands: '2.4 GHz + 5 GHz + 6 GHz (tri-band)', streams: '4×4 MU-MIMO tri-band', maxThroughput: '7.3 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 2.5GbE (uplink PoE++)', count: 1, speed: '2.5G', media: 'rj45', poe: 'PoE++ 802.3bt — consumo 30W' },
+      { label: '1× USB-A (IoT / BLE 5.2)', count: 1, speed: 'USB 2.0', media: 'usb', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '30W (PoE++)', antennas: 'Integradas tri-band con MU-MIMO mejorado', security: 'WPA3-Enterprise, 802.1X, rogue detection' },
+    notes: 'AP-635 supera al AP-615 en throughput 6 GHz. Para empresas que migran a WiFi 6E. Requiere PoE++ — switch CX 6200M/6300M recomendado.',
+  },
+
+  'AP-655': {
+    name: 'Aruba AP-655',
+    category: 'ap',
+    formFactor: 'Indoor ceiling mount (ultra alta densidad)',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6E (802.11ax)', bands: '2.4 GHz + 5 GHz + 6 GHz (tri-band)', streams: '8×8 MU-MIMO (5+6 GHz) + 4×4 (2.4 GHz)', maxThroughput: '11.5 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 2.5GbE (uplink PoE++)', count: 1, speed: '2.5G', media: 'rj45', poe: 'PoE++ 802.3bt — consumo 30W' },
+      { label: '1× USB-A (IoT / BLE 5.2)', count: 1, speed: 'USB 2.0', media: 'usb', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '30W (PoE++)', antennas: 'Integradas 8×8 ultra alta densidad', security: 'WPA3-Enterprise, DPP, Enhanced Open' },
+    notes: 'AP WiFi 6E máximo rendimiento. 8×8 MU-MIMO para campus densos y recintos deportivos. Requiere switch CX 6200M/6300M (PoE++ 2.5G por puerto).',
+  },
+
+  'AP-503H': {
+    name: 'Aruba AP-503H',
+    category: 'ap',
+    formFactor: 'Hospitality / wall-plate',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6 (802.11ax)', bands: '2.4 GHz + 5 GHz', streams: '2×2 MU-MIMO dual band', maxThroughput: '1.7 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 1GbE (uplink PoE hacia switch)', count: 1, speed: '1G', media: 'rj45', poe: 'PoE 802.3af — consumo 15.4W' },
+      { label: '3× RJ45 1GbE (downlink — TV, teléfono IP, laptop)', count: 3, speed: '1G', media: 'rj45', poe: null },
+      { label: '1× USB-A (carga / IoT)', count: 1, speed: 'USB 2.0', media: 'usb', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '15.4W (PoE)', antennas: 'Integradas para cuartos / habitaciones', security: 'WPA3, 802.1X, captive portal' },
+    notes: 'AP para hoteles y hospitales. Montaje en pared. 3 puertos Ethernet para dispositivos en habitación. Solo requiere PoE estándar (15.4W).',
+  },
+
+  'AP-584': {
+    name: 'Aruba AP-584',
+    category: 'ap',
+    formFactor: 'Outdoor IP67 (montaje en poste/pared)',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6 (802.11ax)', bands: '2.4 GHz + 5 GHz', streams: '4×4 MU-MIMO dual band', maxThroughput: '3.55 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 1GbE (uplink PoE+, sellado IP67)', count: 1, speed: '1G', media: 'rj45', poe: 'PoE+ 802.3at — consumo 24W' },
+      { label: '1× SFP 1GbE (uplink fibra, sellado)', count: 1, speed: '1G', media: 'sfp', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '24W (PoE+)', temperature: '-40 °C a +65 °C', casing: 'IP67', security: 'WPA3, 802.1X' },
+    notes: 'AP outdoor resistente IP67. Para estacionamientos, almacenes, áreas industriales. Acepta fibra o cobre en uplink.',
+  },
+
+  'AP-634': {
+    name: 'Aruba AP-634',
+    category: 'ap',
+    formFactor: 'Outdoor IP67 (antenas externas direccionales)',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6E (802.11ax)', bands: '2.4 GHz + 5 GHz + 6 GHz (tri-band)', streams: '4×4 MU-MIMO tri-band', maxThroughput: '6 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 2.5GbE (uplink PoE++, sellado)', count: 1, speed: '2.5G', media: 'rj45', poe: 'PoE++ 802.3bt — consumo 35W' },
+      { label: '1× SFP+ 10GbE (uplink fibra preferido)', count: 1, speed: '10G', media: 'sfp+', poe: null },
+      { label: '6× N-Type (conectores antenas externas)', count: 6, speed: null, media: 'antenna', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '35W (PoE++)', temperature: '-40 °C a +65 °C', casing: 'IP67 grado industrial', security: 'WPA3-Enterprise, 802.1X' },
+    notes: 'AP outdoor WiFi 6E con antenas externas direccionales. Largo alcance: estadios, puertos, campus. Uplink fibra SFP+ 10G recomendado sobre cobre.',
+  },
+
+  'AP-654': {
+    name: 'Aruba AP-654',
+    category: 'ap',
+    formFactor: 'Outdoor IP67 (ultra alta densidad)',
+    redundancy: null,
+    wifi: { standard: 'WiFi 6E (802.11ax)', bands: '2.4 GHz + 5 GHz + 6 GHz (tri-band)', streams: '8×8 MU-MIMO (5+6 GHz) + 4×4 (2.4 GHz)', maxThroughput: '11.5 Gbps agregado' },
+    ports: [
+      { label: '1× RJ45 2.5GbE (uplink PoE++, sellado IP67)', count: 1, speed: '2.5G', media: 'rj45', poe: 'PoE++ 802.3bt — consumo 40W' },
+      { label: '1× SFP+ 10GbE (uplink fibra — recomendado)', count: 1, speed: '10G', media: 'sfp+', poe: null },
+      { label: '1× USB-A (IoT / sensores)', count: 1, speed: 'USB 2.0', media: 'usb', poe: null },
+    ],
+    specs: { management: 'Aruba Central / AOS-10', consumption: '40W (PoE++) — fuente DC opcional', temperature: '-40 °C a +65 °C', casing: 'IP67 grado industrial', security: 'WPA3-Enterprise, DPP, 802.1X' },
+    notes: 'AP outdoor más potente de Aruba. 8×8 MU-MIMO tri-band. Estadios y espacios abiertos de alta densidad. Uplink fibra SFP+ 10G. Confirmar PoE++ (40W) en switch.',
   },
 }
 

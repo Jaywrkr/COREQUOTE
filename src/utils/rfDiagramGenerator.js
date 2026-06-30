@@ -23,7 +23,36 @@ export const MODEL_OPTIONS = {
   power:    ['S1012', 'S1014', 'S1022', 'S1024', 'E1050', 'E1080'],
   storage:  ['FlashSystem 5600', 'FlashSystem 7600', 'FlashSystem 9600', 'Synology RS6426xs+', 'Synology RS4826xs+', 'Synology RS3626xs', 'Synology RS1626xs+', 'Synology DS1825+', 'Synology DS1525+', 'Synology DS925+', 'Synology DS725+', 'Synology FS200T'],
   tape:     ['TS4300', 'TS4500'],
-  switch:   ['CX 6000', 'CX 6100', 'CX 6200', 'CX 6300', 'CX 6400', 'CX 8100', 'CX 8325', 'CX 8360', 'CX 9300', 'CX 10000', 'CX 4100i'],
+  switch: [
+    // CX 6000 — edge/SMB access
+    'CX 6000-12G', 'CX 6000-24G', 'CX 6000-48G',
+    // CX 6100 — SMB access PoE
+    'CX 6100-12G', 'CX 6100-12G PoE+', 'CX 6100-24G', 'CX 6100-24G PoE+', 'CX 6100-48G PoE+',
+    // CX 6200 — enterprise access
+    'CX 6200F-24G', 'CX 6200F-24G PoE+', 'CX 6200F-48G PoE+', 'CX 6200M-24G PoE++', 'CX 6200M-48G PoE++',
+    // CX 6300 — enterprise distribution
+    'CX 6300F-24', 'CX 6300F-48', 'CX 6300M-24 PoE++', 'CX 6300M-48 PoE++',
+    // CX 6400 — core
+    'CX 6400',
+    // CX 8100/8325/8360 — aggregation/core
+    'CX 8100', 'CX 8325', 'CX 8360',
+    // CX 9300/10000 — hyperscale core
+    'CX 9300', 'CX 10000',
+    // CX 4100i — industrial
+    'CX 4100i',
+  ],
+  ap: [
+    // Indoor WiFi 6
+    'AP-515', 'AP-535', 'AP-555',
+    // Indoor WiFi 6E
+    'AP-615', 'AP-635', 'AP-655',
+    // Specialty indoor
+    'AP-503H',
+    // Outdoor WiFi 6
+    'AP-584',
+    // Outdoor WiFi 6E
+    'AP-634', 'AP-654',
+  ],
   firewall: ['Quantum 3600', 'Quantum 3800', 'Quantum 6000', 'Quantum 26000', 'Quantum 28000', 'Quantum Force', 'Quantum Lightspeed'],
 }
 
