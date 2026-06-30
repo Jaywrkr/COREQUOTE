@@ -1011,20 +1011,27 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
   useEffect(() => { nodesRef.current = nodes }, [nodes])
   useEffect(() => { edgesRef.current = edges }, [edges])
 
-  const prevDomainsKey = useRef(JSON.stringify(assessment.domains) + JSON.stringify(assessment.answers))
+  // ── Bidirectional sync guards ──────────────────────────────────────────────
+  // isFirstRun: always run form→diagram on mount (catches changes made while sheet was closed)
+  // skipNextFormSync: set by diagram→form sync to break the cascade without swallowing real changes
+  const isFirstRun       = useRef(true)
+  const skipNextFormSync = useRef(false)
 
-  // ── Reconcile diagram when form domains/answers change ──
+  // ── Form → diagram: reconcile whenever domains or answers change ──
   useEffect(() => {
-    const key = JSON.stringify(assessment.domains) + JSON.stringify(assessment.answers)
-    if (key === prevDomainsKey.current) return
-    prevDomainsKey.current = key
+    const first = isFirstRun.current
+    isFirstRun.current = false
+    if (!first && skipNextFormSync.current) {
+      skipNextFormSync.current = false
+      return
+    }
     const generated = generateRFDiagram(assessment)
     const { nodes: n, edges: e } = mergeDiagram(nodesRef.current, edgesRef.current, generated)
     setNodes(n)
     setEdges(e)
   }, [assessment.domains, assessment.answers]) // eslint-disable-line
 
-  // ── Propagate domain changes when nodes are added/removed (diagram → form) ──
+  // ── Diagram → form: propagate when node types change ──
   const prevNodesKey = useRef(null)
   useEffect(() => {
     const key = nodes.map(n => n.data?.nodeType).sort().join(',')
@@ -1034,6 +1041,8 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
     const next = domainsFromNodes(nodes, assessment.domains)
     const current = [...assessment.domains].sort()
     if (JSON.stringify(next) !== JSON.stringify(current)) {
+      // Flag so the domain-change re-render doesn't trigger another form→diagram run
+      skipNextFormSync.current = true
       onDomainChange(next)
     }
   }, [nodes]) // eslint-disable-line
