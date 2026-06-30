@@ -17,6 +17,7 @@ import 'reactflow/dist/style.css'
 import { generateRFDiagram, NODE_TYPES, MODEL_OPTIONS } from '../../utils/rfDiagramGenerator'
 import { EQUIPMENT_DB } from '../../data/equipment'
 import { getRecommendations } from '../../utils/recommendations'
+import { validateArchitecture } from '../../utils/architectureValidation'
 
 // ─── Connection rules ─────────────────────────────────────────────────────────
 // Based on real enterprise network architecture best practices.
@@ -836,6 +837,62 @@ function RecommendationPanel({ nodes, edges, onConnect, onClose }) {
   )
 }
 
+// ─── Validation panel ─────────────────────────────────────────────────────────
+function ValidationPanel({ nodes, edges, onClose }) {
+  const checks = validateArchitecture(nodes, edges)
+
+  const LEVEL = {
+    critical: { label: 'CRÍTICO', color: '#da1e28', bg: 'rgba(218,30,40,0.10)', icon: '✕' },
+    warning:  { label: 'AVISO',   color: '#ff832b', bg: 'rgba(255,131,43,0.10)', icon: '⚠' },
+    info:     { label: 'INFO',    color: '#0f62fe', bg: 'rgba(15,98,254,0.10)',  icon: 'ℹ' },
+    pass:     { label: 'OK',      color: '#24a148', bg: 'rgba(36,161,72,0.10)',  icon: '✓' },
+  }
+
+  const criticals = checks.filter(c => c.level === 'critical').length
+  const warnings  = checks.filter(c => c.level === 'warning').length
+
+  return (
+    <div className="absolute right-0 top-0 bottom-0 bg-ibm-gray90 border-l border-ibm-gray70 flex flex-col z-20 shadow-xl" style={{ width: 300 }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-ibm-gray70 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-base">✅</span>
+          <span className="text-xs font-semibold text-ibm-gray10">Validación</span>
+          {criticals > 0 && (
+            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5" style={{ background: 'rgba(218,30,40,0.15)', color: '#da1e28' }}>{criticals}</span>
+          )}
+          {warnings > 0 && (
+            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5" style={{ background: 'rgba(255,131,43,0.15)', color: '#ff832b' }}>{warnings}</span>
+          )}
+        </div>
+        <button onClick={onClose} className="text-ibm-gray50 hover:text-ibm-gray10 p-1">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <p className="px-4 py-2 text-[10px] text-ibm-gray50 border-b border-ibm-gray80 flex-shrink-0">
+        Revisión contra mejores prácticas empresariales
+      </p>
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {checks.map(c => {
+          const lv = LEVEL[c.level]
+          return (
+            <div key={c.id} className="border px-3 py-2.5" style={{ borderColor: `${lv.color}40`, backgroundColor: lv.bg }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-bold" style={{ color: lv.color }}>{lv.icon}</span>
+                <span className="text-[8px] font-mono font-bold tracking-widest px-1.5 py-0.5"
+                  style={{ color: lv.color, background: `${lv.color}18` }}>{lv.label}</span>
+              </div>
+              <p className="text-[10px] font-semibold text-ibm-gray10 leading-snug">{c.title}</p>
+              <p className="text-[9px] text-ibm-gray50 leading-snug mt-1">{c.detail}</p>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── Legend ───────────────────────────────────────────────────────────────────
 function DiagramLegend() {
   return (
@@ -942,11 +999,12 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
   }
   const [nodes, setNodes, onNodesChange] = useNodesState(initRef.current.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initRef.current.edges)
-  const [selectedNode, setSelectedNode] = useState(null)
-  const [showPicker, setShowPicker]     = useState(false)
-  const [showRecs, setShowRecs]         = useState(false)
-  const [pendingConn, setPendingConn]   = useState(null)
-  const [fullscreen, setFullscreen]     = useState(false)
+  const [selectedNode, setSelectedNode]     = useState(null)
+  const [showPicker, setShowPicker]         = useState(false)
+  const [showRecs, setShowRecs]             = useState(false)
+  const [showValidation, setShowValidation] = useState(false)
+  const [pendingConn, setPendingConn]       = useState(null)
+  const [fullscreen, setFullscreen]         = useState(false)
   const idCounter = useRef(100)
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
@@ -1141,6 +1199,26 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
                   </button>
                 )
               })()}
+              {/* Validation button */}
+              {(() => {
+                const checks = validateArchitecture(nodes, edges)
+                const crits  = checks.filter(c => c.level === 'critical').length
+                const warns  = checks.filter(c => c.level === 'warning').length
+                const color  = crits > 0 ? '#da1e28' : warns > 0 ? '#ff832b' : '#24a148'
+                const badge  = crits > 0 ? crits : warns > 0 ? warns : '✓'
+                return (
+                  <button
+                    onClick={() => { setShowValidation(v => !v); setSelectedNode(null); setShowPicker(false); setShowRecs(false) }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-colors
+                      ${showValidation ? 'bg-ibm-gray70 text-ibm-gray10 border-ibm-gray50' : 'bg-ibm-gray90 text-ibm-gray10 border-ibm-gray70 hover:border-ibm-gray50'}`}
+                  >
+                    <span>✅</span>
+                    <span>Revisar</span>
+                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: `${color}20`, color }}>{badge}</span>
+                  </button>
+                )
+              })()}
               <p className="text-[10px] text-ibm-gray50 hidden sm:block">
                 Click nodo = editar · Click línea = eliminar · Del = borrar nodo
               </p>
@@ -1178,6 +1256,15 @@ export default function DiagramCanvas({ assessment, onDiagramChange, onDomainCha
           pending={pendingConn}
           onConfirm={confirmConn}
           onCancel={() => setPendingConn(null)}
+        />
+      )}
+
+      {/* Validation panel */}
+      {showValidation && (
+        <ValidationPanel
+          nodes={nodes}
+          edges={edges}
+          onClose={() => setShowValidation(false)}
         />
       )}
 

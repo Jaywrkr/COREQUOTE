@@ -4,6 +4,8 @@ import SiteChecklist from './components/steps/SiteChecklist'
 import DiagramView from './components/steps/DiagramView'
 import OutputView from './components/steps/OutputView'
 import DomainsSection from './components/DomainsSection'
+import TutorialModal, { hasTutorialBeenSeen, markTutorialSeen, resetTutorial } from './components/TutorialModal'
+import ProposalSummary from './components/ProposalSummary'
 import { DOMAINS } from './data/domains'
 import {
   loadAll, saveAssessment, deleteAssessment,
@@ -221,7 +223,7 @@ function AssessmentCard({ a, isCurrent, onLoad, onDuplicate, onDelete }) {
 }
 
 // ─── Assessments manager ──────────────────────────────────────────────────────
-function AssessmentsManager({ currentId, onLoad, onNew, onClose }) {
+function AssessmentsManager({ currentId, onLoad, onNew, onClose, onShowTutorial }) {
   const [list, setList] = useState(() => loadAll().sort((a, b) => b.savedAt - a.savedAt))
 
   const handleDelete = id => {
@@ -238,16 +240,30 @@ function AssessmentsManager({ currentId, onLoad, onNew, onClose }) {
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
-      <div className="px-5 py-3 border-b border-ibm-gray20 dark:border-ibm-gray80 flex items-center justify-between flex-shrink-0">
+      <div className="px-5 py-3 border-b border-ibm-gray20 dark:border-ibm-gray80 flex items-center justify-between flex-shrink-0 gap-2 flex-wrap">
         <p className="text-xs text-ibm-gray50">
           {list.length} visita{list.length !== 1 ? 's' : ''} guardada{list.length !== 1 ? 's' : ''}
         </p>
-        <button onClick={onNew} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nueva visita
-        </button>
+        <div className="flex items-center gap-2">
+          {onShowTutorial && (
+            <button
+              onClick={() => { resetTutorial(); onShowTutorial() }}
+              className="btn-ghost text-xs py-1.5 px-3 flex items-center gap-1.5 text-ibm-gray50"
+              title="Ver tutorial de la app"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Tutorial
+            </button>
+          )}
+          <button onClick={onNew} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nueva visita
+          </button>
+        </div>
       </div>
 
       {/* List */}
@@ -363,8 +379,10 @@ function Sidebar({ client, domains, answers }) {
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [dark, setDark] = useState(true)
-  const [sheet, setSheet] = useState(null)   // 'diagrama' | 'reporte' | 'visitas' | null
+  const [sheet, setSheet] = useState(null)   // 'diagrama' | 'reporte' | 'visitas' | 'propuesta' | null
   const [savedAt, setSavedAt] = useState(null)
+  const [showTutorial, setShowTutorial] = useState(false)
+  const [proposalPrices, setProposalPrices] = useState({})
 
   // ── Assessment state ──
   const [id, setId]           = useState(null)
@@ -397,6 +415,7 @@ export default function App() {
     }
 
     setTimeout(() => { isLoaded.current = true }, 100)
+    if (!hasTutorialBeenSeen()) setShowTutorial(true)
   }, [])
 
   function applyAssessment(a) {
@@ -545,7 +564,7 @@ export default function App() {
           <button
             onClick={() => setSheet('diagrama')}
             disabled={domains.length === 0}
-            className="btn-secondary flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
+            className="btn-secondary flex-1 flex items-center justify-center gap-2 disabled:opacity-40 text-xs sm:text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
@@ -553,9 +572,19 @@ export default function App() {
             Diagrama
           </button>
           <button
+            onClick={() => setSheet('propuesta')}
+            disabled={domains.length === 0}
+            className="btn-secondary flex-1 flex items-center justify-center gap-2 disabled:opacity-40 text-xs sm:text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Propuesta
+          </button>
+          <button
             onClick={() => setSheet('reporte')}
             disabled={!client.company}
-            className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
+            className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40 text-xs sm:text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -580,6 +609,15 @@ export default function App() {
           <DiagramView assessment={assessment} onDiagramChange={setDiagram} onDomainChange={setDomains} />
         </Sheet>
       )}
+      {sheet === 'propuesta' && (
+        <Sheet title="Resumen de propuesta" onClose={() => setSheet(null)}>
+          <ProposalSummary
+            assessment={assessment}
+            prices={proposalPrices}
+            onPricesChange={setProposalPrices}
+          />
+        </Sheet>
+      )}
       {sheet === 'reporte' && (
         <Sheet title="Reporte" onClose={() => setSheet(null)}>
           <div className="overflow-y-auto h-full px-5 py-5">
@@ -594,8 +632,14 @@ export default function App() {
             onLoad={handleLoad}
             onNew={handleNew}
             onClose={() => setSheet(null)}
+            onShowTutorial={() => { setShowTutorial(true); setSheet(null) }}
           />
         </Sheet>
+      )}
+
+      {/* ── Tutorial modal ── */}
+      {showTutorial && (
+        <TutorialModal onClose={() => { markTutorialSeen(); setShowTutorial(false) }} />
       )}
 
       {/* ── Version bar ── */}
