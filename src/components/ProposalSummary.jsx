@@ -6,7 +6,6 @@ function fmt(n) {
 }
 
 export default function ProposalSummary({ assessment, prices, onPricesChange }) {
-  const [showEmpty, setShowEmpty] = useState(false)
   const nodes = assessment.diagram?.nodes || []
   const newNodes = useMemo(
     () => nodes.filter(n => n.data?.status === 'new'),
@@ -55,22 +54,19 @@ export default function ProposalSummary({ assessment, prices, onPricesChange }) 
     )
   }
 
-  if (newNodes.length === 0 && !showEmpty) {
+  if (newNodes.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4 text-center px-6">
         <span className="text-5xl">✨</span>
         <p className="text-sm font-semibold text-ibm-gray10">Sin equipos nuevos</p>
         <p className="text-xs text-ibm-gray50 max-w-xs leading-relaxed">
-          En el diagrama, abre un nodo y cámbialo a <span className="text-ibm-blue font-mono">NUEVO</span> para incluirlo en la propuesta.
+          En el diagrama, haz click en un nodo y cámbialo a <span className="text-ibm-blue font-mono">NUEVO</span> para incluirlo en la propuesta de reemplazo o adquisición.
         </p>
-        <button onClick={() => setShowEmpty(true)} className="text-xs text-ibm-gray50 hover:text-ibm-gray30 underline">
-          Ver todos los equipos del diagrama
-        </button>
       </div>
     )
   }
 
-  const displayNodes = newNodes.length > 0 ? newNodes : nodes
+  const displayNodes = newNodes
 
   return (
     <div className="h-full flex flex-col">
@@ -162,11 +158,6 @@ export default function ProposalSummary({ assessment, prices, onPricesChange }) 
           </div>
           <p className="text-xl font-bold font-mono text-ibm-gray10">{fmt(total)}</p>
         </div>
-        {newNodes.length === 0 && showEmpty && (
-          <p className="px-5 pb-3 text-[10px] text-ibm-gray50">
-            Mostrando todos los equipos del diagrama. Márcalos como NUEVO en el diagrama para filtrar solo la propuesta.
-          </p>
-        )}
       </div>
     </div>
   )

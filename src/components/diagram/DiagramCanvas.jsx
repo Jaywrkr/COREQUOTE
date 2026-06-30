@@ -925,11 +925,30 @@ function DiagramLegend() {
 function mergeDiagram(existingNodes, existingEdges, generated) {
   const existingById = new Map(existingNodes.map(n => [n.id, n]))
 
+  // Count manual nodes per type: each manual "consumes" one auto slot so we don't duplicate
+  const manualCountByType = {}
+  for (const n of existingNodes) {
+    if (!n.data?.auto) {
+      const t = n.data?.nodeType
+      manualCountByType[t] = (manualCountByType[t] || 0) + 1
+    }
+  }
+  const manualSlotsUsed = {}
+
   const nextNodes = [
     ...generated.nodes.map(g => {
       const ex = existingById.get(g.id)
-      if (!ex) return g // new auto node
-      // Preserve user customizations; update auto-generated label only if user hasn't edited it
+      if (!ex) {
+        // New auto node: skip if a manual node of the same type already covers this slot
+        const t = g.data?.nodeType
+        const used = manualSlotsUsed[t] || 0
+        if (used < (manualCountByType[t] || 0)) {
+          manualSlotsUsed[t] = used + 1
+          return null
+        }
+        return g
+      }
+      // Existing auto node: preserve user customizations
       return {
         ...ex,
         position: ex.position,
@@ -942,7 +961,7 @@ function mergeDiagram(existingNodes, existingEdges, generated) {
           labelEdited:  ex.data.labelEdited,
         },
       }
-    }),
+    }).filter(Boolean),
     // Keep manually-added nodes not in generated set
     ...existingNodes.filter(n => !n.data?.auto && !generated.nodes.find(g => g.id === n.id)),
   ]
